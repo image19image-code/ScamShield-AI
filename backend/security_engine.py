@@ -592,7 +592,7 @@ or stealing information.
 """
 
         response = client.chat_completion(
-            model="HuggingFaceH4/zephyr-7b-beta",
+            model="Qwen/Qwen2.5-7B-Instruct",
             messages=[
                 {
                     "role": "user",
