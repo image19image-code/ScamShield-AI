@@ -52,67 +52,42 @@
 
     <!-- SCANNER -->
 
-    <section class="scanner-card">
+<section class="scanner-card">
 
-      <div class="scanner-header">
+  <div class="scanner-header">
 
-        <div>
-          <h2>🔍 Analyze a Message or URL</h2>
+    <div>
+      <h2>🔍 Analyze a Message or URL</h2>
 
-          <p>
-            Paste suspicious content below.
-          </p>
-        </div>
+      <p>
+        Paste suspicious content below.
+      </p>
+    </div>
 
-        <span class="privacy-badge">
-          🔒 Privacy First
-        </span>
+    <span class="privacy-badge">
+      🔒 Privacy First
+    </span>
 
-      </div>
+  </div>
 
+  <textarea
+    id="inputText"
+    placeholder="Paste a suspicious message or URL here..."
+  ></textarea>
 
-      <textarea
-        id="inputText"
-        placeholder="Paste a suspicious message or URL here..."
-      ></textarea>
+  <div class="actions">
 
+    <button id="analyzeBtn" class="primary-btn">
+      🔍 Analyze Threat
+    </button>
 
-      <div class="actions">
+    <button id="clearBtn" class="secondary-btn">
+      Clear
+    </button>
 
-        <button id="analyzeBtn" class="primary-btn">
-          🔍 Analyze Threat
-        </button>
+  </div>
 
-        <button id="clearBtn" class="secondary-btn">
-          Clear
-        </button>
-
-      </div>
-
-
-      <div class="examples">
-
-        <span>Try an example:</span>
-
-        <button data-example="bank">
-          🏦 Bank
-        </button>
-
-        <button data-example="delivery">
-          📦 Delivery
-        </button>
-
-        <button data-example="crypto">
-          ₿ Crypto
-        </button>
-
-        <button data-example="safe">
-          🟢 Safe
-        </button>
-
-      </div>
-
-    </section>
+</section>
 
 
     <!-- LOADING -->
