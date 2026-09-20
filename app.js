@@ -1568,9 +1568,14 @@ async function analyze() {
 
 if (threatReport) {
 
-  threatReport.scrollIntoView({
-    behavior: "smooth",
-    block: "start"
+  const targetPosition =
+    threatReport.getBoundingClientRect().top +
+    window.pageYOffset -
+    20;
+
+  window.scrollTo({
+    top: targetPosition,
+    behavior: "smooth"
   });
 
 }
