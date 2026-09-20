@@ -565,9 +565,9 @@ def analyze_with_ai(text: str):
     try:
 
         client = InferenceClient(
-            provider="hf-inference",
-            token=token
-        )
+    provider="auto",
+    token=token
+)
 
         prompt = f"""
 You are a cybersecurity assistant.
