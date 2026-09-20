@@ -1,1162 +1,1865 @@
-import os
-import re
-from urllib.parse import urlparse
+const inputText = document.getElementById("inputText");
+const analyzeBtn = document.getElementById("analyzeBtn");
+const clearBtn = document.getElementById("clearBtn");
 
-from huggingface_hub import InferenceClient
+const loading = document.getElementById("loading");
+const results = document.getElementById("results");
+
+const scoreElement = document.getElementById("score");
+const threatLevelElement = document.getElementById("threatLevel");
+const categoryElement = document.getElementById("category");
+
+const indicatorsElement = document.getElementById("indicators");
+const riskFactorsElement =
+  document.getElementById("riskFactors");
+const explanationElement = document.getElementById("explanation");
+const aiAnalysisElement = document.getElementById("aiAnalysis");
+const evidenceElement = document.getElementById("evidence");
+
+const scoreBreakdownElement =
+  document.getElementById("scoreBreakdown");
+
+const recommendationsElement = document.getElementById("recommendations");
+
+const educationElement = document.getElementById("education");
 
 
-# =========================================================
-# SCAM PATTERNS
-# =========================================================
+/* =========================
+   SCAM PATTERNS
+========================= */
 
-SCAM_PATTERNS = {
+const scamPatterns = {
 
-    "urgency": [
-        "urgent",
-        "immediately",
-        "act now",
-        "right now",
-        "within 24 hours",
-        "expires",
-        "last chance",
-    ],
+  urgency: [
+    "urgent",
+    "immediately",
+    "act now",
+    "right now",
+    "today",
+    "within 24 hours",
+    "expires",
+    "last chance"
+  ],
 
-    "credentials": [
-        "verify your account",
-        "verify your identity",
-        "verification",
-        "verify",
-        "login",
-        "username",
-        "security code",
-        "otp",
-        "one time password",
-        "sign in",
-        "confirm your account",
-        "confirm your identity",
-        "account information",
-        "security alert",
-        "reset your password",
-        "update your account",
-        "enter your password",
-        "provide your password",
-        "type your password",
-        "submit your password",
-        "password to confirm",
-        "password to verify",
-        "login with your password",
-    ],
+  credentials: [
+    "password",
+    "verify your account",
+    "verify your identity",
+    "login",
+    "username",
+    "security code",
+    "otp",
+    "one time password",
+    "sign in"
+  ],
 
-    "suspicious_action": [
-        "click here",
-        "click the link",
-        "click this link",
-        "open the link",
-        "follow the link",
-        "confirm your identity",
-        "review your account",
-        "verify now",
-        "click to verify",
-        "click here to claim",
-        "click to claim",
-        "claim now",
-        "claim your prize",
-        "claim your reward",
-        "tap here",
-        "open now",
-    ],
+  financial: [
+    "credit card",
+    "bank account",
+    "payment",
+    "send money",
+    "transfer money",
+    "bitcoin",
+    "crypto",
+    "wallet",
+    "refund",
+    "fee"
+  ],
 
-    "financial": [
-        "credit card",
-        "bank account",
-        "payment",
-        "send money",
-        "transfer money",
-        "bitcoin",
-        "crypto",
-        "wallet",
-        "refund",
-        "fee",
-    ],
+  threats: [
+    "suspended",
+    "suspend",
+    "blocked",
+    "closed",
+    "legal action",
+    "police",
+    "penalty",
+    "deactivated"
+  ],
 
-    "threats": [
-        "suspended",
-        "suspend",
-        "blocked",
-        "closed",
-        "legal action",
-        "police",
-        "penalty",
-        "deactivated",
-    ],
+  rewards: [
+    "winner",
+    "you won",
+    "prize",
+    "free money",
+    "claim your reward",
+    "lottery",
+    "congratulations"
+  ],
 
-    "rewards": [
-        "winner",
-        "you won",
-        "prize",
-        "free money",
-        "claim your reward",
-        "lottery",
-        "congratulations",
-    ],
+  impersonation: [
+    "official",
+    "security team",
+    "support team",
+    "customer service",
+    "your bank",
+    "paypal",
+    "microsoft",
+    "apple",
+    "amazon"
+  ]
 
-    "impersonation": [
-        "security team",
-        "support team",
-        "customer service",
-        "your bank",
-        "paypal",
-        "microsoft",
-        "apple",
-        "amazon",
-        "google",
-    ],
+};
+
+
+/* =========================
+   CATEGORY FORMAT
+========================= */
+
+function formatCategory(category) {
+
+  const names = {
+
+    urgency: "Urgency Manipulation",
+
+    credentials: "Credential Request",
+
+    financial: "Financial Request",
+
+    threats: "Threat / Fear Tactic",
+
+    rewards: "Reward Scam Indicator",
+
+    impersonation: "Possible Impersonation",
+
+    url: "Suspicious URL"
+
+  };
+
+  return names[category] || category;
+
 }
 
 
-# =========================================================
-# TEXT ANALYSIS
-# =========================================================
+/* =========================
+   DESCRIPTIONS
+========================= */
 
-def analyze_text(text: str):
+function getDescription(category) {
 
-    text = text or ""
-    text_lower = re.sub(r"\s+", " ", text.lower()).strip()
+  const descriptions = {
 
-    indicators = []
-    matched_categories = []
+    urgency:
+      "The message pressures the recipient to act quickly without taking time to verify the request.",
 
-    for category, patterns in SCAM_PATTERNS.items():
+    credentials:
+      "The message appears to request authentication or account information.",
 
-        category_found = False
+    financial:
+      "The message involves money, payment, financial information, or cryptocurrency.",
 
-        for pattern in patterns:
+    threats:
+      "The message uses fear, consequences, or threats to influence the recipient.",
 
-            if pattern in text_lower:
+    rewards:
+      "The message uses prizes, rewards, or unexpected benefits as a possible lure.",
 
-                indicators.append({
-                    "type": category,
-                    "evidence": pattern
-                })
+    impersonation:
+      "The message contains language associated with trusted organizations or support services.",
 
-                category_found = True
+    url:
+      "The detected URL contains characteristics that deserve additional verification."
 
-        if category_found:
-            matched_categories.append(category)
+  };
 
-    # -----------------------------------------------------
-    # CATEGORY WEIGHTS
-    # -----------------------------------------------------
+  return descriptions[category] || "A potentially suspicious characteristic was detected.";
 
-    category_weights = {
+}
 
-        "credentials": 30,
 
-        "financial": 28,
+/* =========================
+   OLD FRONTEND ANALYSIS
+   Used only as fallback
+========================= */
 
-        "threats": 20,
+function analyzeText(text) {
 
-        "rewards": 18,
+  const lowerText = text.toLowerCase();
 
-        "urgency": 14,
+  const indicators = [];
 
-        "impersonation": 10,
+  let score = 0;
 
-        "suspicious_action": 10,
+
+  for (const category in scamPatterns) {
+
+    const matches =
+      scamPatterns[category].filter(pattern =>
+        lowerText.includes(pattern)
+      );
+
+
+    if (matches.length > 0) {
+
+      let categoryScore = 0;
+
+      switch (category) {
+
+        case "credentials":
+          categoryScore = 25;
+          break;
+
+        case "financial":
+          categoryScore = 25;
+          break;
+
+        case "urgency":
+          categoryScore = 15;
+          break;
+
+        case "threats":
+          categoryScore = 15;
+          break;
+
+        case "rewards":
+          categoryScore = 15;
+          break;
+
+        case "impersonation":
+          categoryScore = 10;
+          break;
+
+      }
+
+
+      score += categoryScore;
+
+
+      indicators.push({
+
+        category: category,
+
+        matches: matches,
+
+        title: formatCategory(category),
+
+        description: getDescription(category)
+
+      });
+
     }
 
-    score = 0
+  }
 
-    for category in matched_categories:
-        score += category_weights.get(category, 0)
+
+  return {
+
+    score: Math.min(score, 70),
+
+    indicators: indicators
+
+  };
+
+}
+
+
+/* =========================
+   THREAT LEVEL
+========================= */
+
+function getThreatLevel(score) {
+
+  if (score >= 80) {
 
     return {
-        "score": min(score, 70),
-        "indicators": indicators,
-        "categories": matched_categories
+
+      level: "CRITICAL",
+
+      category: "HIGH-RISK SCAM",
+
+      color: "#ff5364"
+
+    };
+
+  }
+
+
+  if (score >= 60) {
+
+    return {
+
+      level: "HIGH RISK",
+
+      category: "LIKELY PHISHING / SCAM",
+
+      color: "#ff6b4a"
+
+    };
+
+  }
+
+
+  if (score >= 35) {
+
+    return {
+
+      level: "SUSPICIOUS",
+
+      category: "SUSPICIOUS CONTENT",
+
+      color: "#ffad42"
+
+    };
+
+  }
+
+
+  return {
+
+    level: "LOW RISK",
+
+    category: "NO STRONG SCAM SIGNALS",
+
+    color: "#42e8a0"
+
+  };
+
+}
+
+
+/* =========================
+   RECOMMENDATIONS
+========================= */
+
+function getRecommendations(score, indicators) {
+
+  const recommendations = [];
+
+
+  if (score >= 35) {
+
+    recommendations.push(
+      "🛑 Do not click suspicious links."
+    );
+
+    recommendations.push(
+      "🔐 Do not enter passwords, OTP codes, or financial information."
+    );
+
+    recommendations.push(
+      "🔎 Verify the sender through an official channel."
+    );
+
+  }
+
+
+  if (score >= 60) {
+
+    recommendations.push(
+      "⚠️ Consider reporting the message as phishing or spam."
+    );
+
+  }
+
+
+  if (score < 35) {
+
+    recommendations.push(
+      "✅ No strong scam indicators were detected."
+    );
+
+    recommendations.push(
+      "🔎 Still verify unexpected requests before taking action."
+    );
+
+  }
+
+
+  return recommendations;
+
+}
+
+
+/* =========================
+   EDUCATION
+========================= */
+
+function getEducation(indicators) {
+
+  const categories =
+    indicators.map(item => item.category);
+
+
+  if (categories.includes("urgency")) {
+
+    return `
+      Attackers often create urgency or fear
+      to prevent victims from thinking carefully.
+      Stop, verify the request independently,
+      and only then take action.
+    `;
+
+  }
+
+
+  if (categories.includes("credentials")) {
+
+    return `
+      Legitimate organizations generally have
+      established official channels for account
+      management. Be cautious when a message
+      asks you to enter credentials through a link.
+    `;
+
+  }
+
+
+  if (categories.includes("financial")) {
+
+    return `
+      Financial requests deserve extra caution.
+      Never send money or financial information
+      simply because a message creates pressure
+      or urgency.
+    `;
+
+  }
+
+
+  return `
+    A security tool can identify warning signs,
+    but users should always verify important
+    requests through trusted official channels.
+  `;
+
+}
+
+
+/* =========================
+   ESCAPE HTML
+========================= */
+
+function escapeHTML(text) {
+
+  const div = document.createElement("div");
+
+  div.textContent = text;
+
+  return div.innerHTML;
+
+}
+
+
+function escapeRegExp(text) {
+
+  return text.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&"
+  );
+
+}
+
+
+/* =========================
+   HIGHLIGHT EVIDENCE
+========================= */
+
+function createEvidence(text, indicators) {
+
+  let result = escapeHTML(text);
+
+
+  indicators.forEach(indicator => {
+
+    if (!indicator.matches) {
+      return;
     }
 
 
-# =========================================================
-# URL EXTRACTION
-# =========================================================
+    indicator.matches.forEach(match => {
 
-def extract_urls(text: str):
+      const escaped =
+        escapeRegExp(
+          escapeHTML(match)
+        );
 
-    text = text or ""
 
-    return re.findall(
-        r"https?://[^\s<>\"']+",
+      const regex =
+        new RegExp(
+          `(${escaped})`,
+          "gi"
+        );
+
+
+      result =
+        result.replace(
+          regex,
+          "<mark>$1</mark>"
+        );
+
+    });
+
+  });
+
+
+  return result;
+
+}
+
+
+/* =========================
+   NORMALIZE BACKEND DATA
+========================= */
+
+function normalizeIndicators(indicators) {
+
+  return (indicators || []).map(indicator => {
+
+    const type =
+      indicator.type || "unknown";
+
+    const evidence =
+      indicator.evidence ||
+      indicator.description ||
+      "Suspicious indicator detected";
+
+
+    let title;
+
+    switch (type) {
+
+      case "credentials":
+        title = "Credential Request";
+        break;
+
+      case "financial":
+        title = "Financial Risk";
+        break;
+
+      case "urgency":
+        title = "Urgency Manipulation";
+        break;
+
+      case "threats":
+        title = "Threat / Fear Tactic";
+        break;
+
+      case "impersonation":
+        title = "Possible Impersonation";
+        break;
+
+      case "rewards":
+        title = "Unexpected Reward";
+        break;
+
+      case "url":
+        title = "Suspicious URL";
+        break;
+
+      case "brand_mismatch":
+        title = "Brand / Domain Mismatch";
+        break;
+
+      default:
+        title = formatCategory(type);
+    }
+
+
+    return {
+
+      category: type,
+
+      type: type,
+
+      matches: [evidence],
+
+      title: title,
+
+      description: evidence,
+
+      evidence: evidence
+
+    };
+
+  });
+
+}
+
+
+/* =========================
+   MAIN ANALYSIS
+========================= */
+
+async function analyze() {
+
+  const text =
+    inputText.value.trim();
+
+
+  if (!text) {
+
+    alert(
+      "Please paste a message or URL first."
+    );
+
+    return;
+
+  }
+
+
+  results.classList.add("hidden");
+
+  loading.classList.remove("hidden");
+
+
+  try {
+
+    console.log("Sending request to ScamShield backend...");
+
+
+    const response =
+      await fetch(
+        "https://scamshield-ai-api-82p6.onrender.com/analyze",
+        {
+
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json"
+          },
+
+          body: JSON.stringify({
+            text: text
+          })
+
+        }
+      );
+
+
+    console.log(
+      "Backend response:",
+      response.status
+    );
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        `Backend returned HTTP ${response.status}`
+      );
+
+    }
+
+
+    const data =
+      await response.json();
+
+
+    console.log(
+      "Backend data:",
+      data
+    );
+
+    console.log(
+      "FULL BACKEND DATA:",
+      JSON.stringify(data, null, 2)
+    );
+
+
+    /* =========================
+       NORMALIZE DATA
+    ========================= */
+
+    const totalScore =
+      Number(data.score) || 0;
+
+    const textContribution =
+      Number(data.text_contribution) || 0;
+
+    const urlContribution =
+      Number(data.url_contribution) || 0;
+
+    const reinforcementScore =
+      Number(data.reinforcement_score) || 0;
+
+
+    const allIndicators =
+      normalizeIndicators(
+        data.indicators
+      );
+
+
+    if (scoreBreakdownElement) {
+
+      const scoreBar =
+        document.getElementById("scoreBar");
+
+      console.log("Score bar:", scoreBar);
+      console.log("Total score:", totalScore);
+
+      const scorePercentage =
+        document.getElementById("scorePercentage");
+
+      const textContributionElement =
+        document.getElementById("textContribution");
+
+      const urlContributionElement =
+        document.getElementById("urlContribution");
+
+      const reinforcementScoreElement =
+        document.getElementById("reinforcementScore");
+
+      const finalScoreElement =
+        document.getElementById("finalScore");
+
+
+      const scoreBarContainer =
+        document.querySelector(".score-bar-container");
+
+      if (scoreBarContainer) {
+
+        scoreBarContainer.style.setProperty(
+          "--score",
+          `${totalScore}%`
+        );
+
+      }
+
+
+      if (scorePercentage) {
+
+        scorePercentage.textContent =
+          `${totalScore}/100`;
+
+      }
+
+      if (textContributionElement) {
+
+        textContributionElement.textContent =
+          `+${textContribution}/55`;
+
+      }
+
+      if (urlContributionElement) {
+
+        urlContributionElement.textContent =
+          `+${urlContribution}/25`;
+
+      }
+
+      if (reinforcementScoreElement) {
+
+        reinforcementScoreElement.textContent =
+          `+${reinforcementScore}`;
+
+      }
+
+      if (finalScoreElement) {
+
+        finalScoreElement.textContent =
+          `${totalScore}/100`;
+
+      }
+
+    }
+
+
+    /* =========================
+       SCORE
+    ========================= */
+
+    scoreElement.textContent =
+      totalScore;
+
+
+    const threat =
+      getThreatLevel(totalScore);
+
+
+    threatLevelElement.textContent =
+      data.threat_level || threat.level;
+
+
+    threatLevelElement.style.color =
+      threat.color;
+
+
+    categoryElement.textContent =
+      data.category || threat.category;
+
+
+    /* =========================
+       INDICATORS
+    ========================= */
+
+    indicatorsElement.innerHTML = "";
+
+
+    /*
+      Normalize backend indicators
+      so every security signal has
+      a clear title and explanation.
+    */
+
+    const normalizedIndicators = allIndicators.map(indicator => {
+
+      const type =
+        indicator.type ||
+        indicator.category ||
+        "unknown";
+
+      let title =
+        indicator.title ||
+        "Suspicious Indicator";
+
+      let description =
+        indicator.description ||
+        indicator.evidence ||
+        "Suspicious security characteristic detected.";
+
+
+      switch (type) {
+
+        case "credentials":
+
+          title = "Credential Request";
+
+          description =
+            indicator.evidence ||
+            indicator.description ||
+            "The message may be attempting to obtain sensitive authentication information.";
+
+          break;
+
+
+        case "financial":
+
+          title = "Financial Risk";
+
+          description =
+            indicator.evidence ||
+            indicator.description ||
+            "The message contains indicators associated with financial requests or payment activity.";
+
+          break;
+
+
+        case "urgency":
+
+          title = "Urgency Pressure";
+
+          description =
+            indicator.evidence ||
+            indicator.description ||
+            "The message pressures the recipient to act quickly.";
+
+          break;
+
+
+        case "threats":
+
+          title = "Threat / Fear Tactic";
+
+          description =
+            indicator.evidence ||
+            indicator.description ||
+            "The message uses threats or fear to pressure the recipient.";
+
+          break;
+
+
+        case "impersonation":
+
+          title = "Possible Impersonation";
+
+          description =
+            indicator.evidence ||
+            indicator.description ||
+            "The message uses language associated with a trusted organization or service.";
+
+          break;
+
+
+        case "rewards":
+
+          title = "Unexpected Reward";
+
+          description =
+            indicator.evidence ||
+            indicator.description ||
+            "The message contains an unexpected prize, reward, or promotional claim.";
+
+          break;
+
+
+        case "url":
+
+          title = "Suspicious URL";
+
+          description =
+            indicator.evidence ||
+            indicator.description ||
+            "The detected URL contains suspicious characteristics.";
+
+          break;
+
+
+        case "brand_mismatch":
+
+          title = "Brand / Domain Mismatch";
+
+          description =
+            indicator.evidence ||
+            "A trusted brand is referenced, but the detected URL domain does not match a recognized official domain.";
+
+          break;
+
+
+        default:
+
+          title =
+            indicator.title ||
+            "Suspicious Indicator";
+
+          description =
+            indicator.evidence ||
+            indicator.description ||
+            "Suspicious security characteristic detected.";
+
+      }
+
+
+      return {
+        ...indicator,
+        type,
+        title,
+        description
+      };
+
+    });
+
+
+    /*
+      Remove duplicate indicators.
+    */
+
+    const uniqueIndicators = [];
+
+    const seenIndicatorTypes = new Set();
+
+
+    normalizedIndicators.forEach(indicator => {
+
+      const key =
+        indicator.type ||
+        indicator.title ||
+        indicator.description;
+
+
+      if (!seenIndicatorTypes.has(key)) {
+
+        seenIndicatorTypes.add(key);
+
+        uniqueIndicators.push(indicator);
+
+      }
+
+    });
+
+
+    /* =========================
+       DETAILED SECURITY REASONING
+    ========================= */
+
+    function renderDetailedSecurityReasoning(score, indicators) {
+
+      const types =
+        indicators.map(indicator => indicator.type);
+
+      const messageSignals = [];
+      const urlSignals = [];
+      const reinforcementSignals = [];
+
+
+      if (types.includes("credentials")) {
+
+        messageSignals.push(
+          ["🔐", "Credential request", "+25"]
+        );
+
+      }
+
+
+      if (types.includes("financial")) {
+
+        messageSignals.push(
+          ["💳", "Financial risk", "+25"]
+        );
+
+      }
+
+
+      if (types.includes("urgency")) {
+
+        messageSignals.push(
+          ["⏱️", "Urgency pressure", "+15"]
+        );
+
+      }
+
+
+      if (types.includes("threats")) {
+
+        messageSignals.push(
+          ["⚠️", "Threat / fear tactic", "+15"]
+        );
+
+      }
+
+
+      if (types.includes("impersonation")) {
+
+        messageSignals.push(
+          ["🏢", "Possible impersonation", "+10"]
+        );
+
+      }
+
+
+      indicators
+        .filter(i => i.type === "url")
+        .forEach(indicator => {
+
+          const evidence =
+            (
+              indicator.evidence ||
+              indicator.description ||
+              ""
+            ).toLowerCase();
+
+
+          if (
+            evidence.includes(
+              "http instead of https"
+            )
+          ) {
+
+            urlSignals.push(
+              ["🔗", "HTTP instead of HTTPS", "+15"]
+            );
+
+          }
+
+
+          if (
+            evidence.includes(
+              "suspicious url keywords"
+            )
+          ) {
+
+            urlSignals.push(
+              ["🔎", "Suspicious URL keywords", "+15"]
+            );
+
+          }
+
+
+          if (
+            evidence.includes("hyphen")
+          ) {
+
+            urlSignals.push(
+              ["➖", "Excessive hyphens", "+10"]
+            );
+
+          }
+
+
+          if (
+            evidence.includes("long domain")
+          ) {
+
+            urlSignals.push(
+              ["🌐", "Unusually long domain", "+10"]
+            );
+
+          }
+
+
+          if (
+            evidence.includes("direct ip")
+          ) {
+
+            urlSignals.push(
+              ["🌐", "Direct IP address", "+25"]
+            );
+
+          }
+
+
+          if (
+            evidence.includes("@")
+          ) {
+
+            urlSignals.push(
+              ["⚠️", "URL contains @ symbol", "+20"]
+            );
+
+          }
+
+        });
+
+
+      if (
+        types.includes("credentials") &&
+        types.includes("url")
+      ) {
+
+        reinforcementSignals.push(
+          [
+            "🔐",
+            "Credentials + suspicious URL",
+            "+5"
+          ]
+        );
+
+      }
+
+
+      if (
+        types.includes("financial") &&
+        types.includes("url")
+      ) {
+
+        reinforcementSignals.push(
+          [
+            "💳",
+            "Financial risk + suspicious URL",
+            "+4"
+          ]
+        );
+
+      }
+
+
+      if (
+        types.includes("urgency") &&
+        types.includes("credentials")
+      ) {
+
+        reinforcementSignals.push(
+          [
+            "⏱️",
+            "Urgency + credentials",
+            "+3"
+          ]
+        );
+
+      }
+
+
+      if (
+        types.includes("threats") &&
+        types.includes("urgency")
+      ) {
+
+        reinforcementSignals.push(
+          [
+            "⚠️",
+            "Threat + urgency",
+            "+3"
+          ]
+        );
+
+      }
+
+
+      if (
+        types.includes("impersonation") &&
+        types.includes("credentials")
+      ) {
+
+        reinforcementSignals.push(
+          [
+            "🏢",
+            "Impersonation + credentials",
+            "+2"
+          ]
+        );
+
+      }
+
+
+      if (
+        types.includes("credentials") &&
+        types.includes("url") &&
+        (
+          types.includes("urgency") ||
+          types.includes("threats") ||
+          types.includes("impersonation")
+        )
+      ) {
+
+        reinforcementSignals.push(
+          [
+            "🎯",
+            "Strong phishing pattern",
+            "+4"
+          ]
+        );
+
+      }
+
+
+      const section = (title, signals) => {
+
+        if (!signals.length) {
+
+          return `
+        <div style="margin-top:14px;padding:12px;border-radius:10px;background:rgba(255,255,255,.03);">
+          <strong>${title}</strong>
+          <div style="margin-top:6px;opacity:.65;">No major signals detected.</div>
+        </div>`;
+
+        }
+
+
+        return `
+      <div style="margin-top:14px;padding:12px;border-radius:10px;background:rgba(255,255,255,.03);">
+        <strong>${title}</strong>
+        <div style="margin-top:8px;">
+          ${signals.map(signal => `
+            <div style="display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+              <span>${signal[0]} ${escapeHTML(signal[1])}</span>
+              <strong>${signal[2]}</strong>
+            </div>`).join("")}
+        </div>
+      </div>`;
+
+      };
+
+
+      return `
+    <div style="margin-top:18px;padding-top:18px;border-top:1px solid rgba(255,255,255,.10);">
+      <div style="font-size:1.05rem;font-weight:700;">🧠 WHY ${score}/100?</div>
+      <div style="font-size:.85rem;opacity:.7;margin-top:5px;">The score is explained using detected security signals and their interactions.</div>
+      ${section("MESSAGE SIGNALS", messageSignals)}
+      ${section("URL SIGNALS", urlSignals)}
+      ${section("CROSS-SIGNAL REINFORCEMENT", reinforcementSignals)}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:13px;border-radius:10px;background:rgba(255,255,255,.05);">
+        <strong>FINAL RISK SCORE</strong>
+        <strong>${score}/100</strong>
+      </div>
+    </div>`;
+
+    }
+
+
+    /* Display after uniqueIndicators has been created. */
+
+    if (scoreBreakdownElement) {
+
+      const reasoning =
+        document.createElement("div");
+
+      reasoning.id =
+        "detailedSecurityReasoning";
+
+      reasoning.innerHTML =
+        renderDetailedSecurityReasoning(
+          totalScore,
+          uniqueIndicators
+        );
+
+      scoreBreakdownElement.appendChild(
+        reasoning
+      );
+
+    }
+
+
+    /*
+      Render indicators.
+    */
+
+    if (uniqueIndicators.length === 0) {
+
+      indicatorsElement.innerHTML = `
+
+    <div
+      class="indicator"
+      style="border-left-color:#42e8a0"
+    >
+
+      <strong>
+        🟢 No strong indicators detected
+      </strong>
+
+      <span>
+        The scanner did not find major
+        scam patterns in this content.
+      </span>
+
+    </div>
+
+  `;
+
+    } else {
+
+      uniqueIndicators.forEach(indicator => {
+
+        const div =
+          document.createElement("div");
+
+        div.className =
+          "indicator";
+
+
+        /*
+          Give brand mismatch a dedicated
+          visual identity.
+        */
+
+        if (indicator.type === "brand_mismatch") {
+
+          div.style.borderLeftColor =
+            "#a855f7";
+
+        }
+
+
+        const displayTitle =
+          indicator.type === "brand_mismatch"
+            ? "Brand / Domain Mismatch"
+            : indicator.title;
+
+
+        const displayDescription =
+          indicator.type === "brand_mismatch"
+            ? (
+                indicator.evidence ||
+                indicator.description ||
+                "A trusted brand is referenced, but the detected URL domain does not match a recognized official domain."
+              )
+            : indicator.description;
+
+
+        div.innerHTML = `
+      <strong>
+        ${
+          indicator.type === "brand_mismatch"
+            ? "🏢"
+            : "⚠️"
+        }
+
+        ${escapeHTML(displayTitle)}
+      </strong>
+
+      <span>
+        ${escapeHTML(displayDescription)}
+      </span>
+    `;
+
+
+        indicatorsElement.appendChild(div);
+
+      });
+
+    }
+
+
+    /* =========================
+       RISK FACTORS
+    ========================= */
+
+    riskFactorsElement.innerHTML = "";
+
+    const riskFactors =
+      data.risk_factors || [];
+
+    const uniqueRiskFactors =
+      [...new Set(riskFactors)];
+
+
+    if (uniqueRiskFactors.length === 0) {
+
+      riskFactorsElement.innerHTML = `
+
+    <div
+      class="indicator"
+      style="border-left-color:#42e8a0"
+    >
+
+      <strong>
+        🟢 No major risk factors detected
+      </strong>
+
+      <span>
+        No significant security factors
+        contributed to the risk score.
+      </span>
+
+    </div>
+
+  `;
+
+    } else {
+
+      uniqueRiskFactors.forEach((factor, index) => {
+
+        const div =
+          document.createElement("div");
+
+        div.className =
+          "indicator";
+
+        div.innerHTML = `
+
+      <strong>
+        ${index < 2 ? "🔴" : "🟠"}
+        Risk factor
+      </strong>
+
+      <span>
+        ${escapeHTML(factor)}
+      </span>
+
+    `;
+
+        riskFactorsElement.appendChild(div);
+
+      });
+
+    }
+
+
+    /* =========================
+       EXPLANATION
+    ========================= */
+
+    if (totalScore >= 60) {
+
+      explanationElement.textContent =
+        "Multiple indicators commonly associated with scams, phishing, or social engineering were detected. Treat this content cautiously and verify it independently.";
+
+    }
+
+    else if (totalScore >= 35) {
+
+      explanationElement.textContent =
+        "Some suspicious characteristics were detected. This does not prove malicious intent, but the content deserves additional verification.";
+
+    }
+
+    else {
+
+      explanationElement.textContent =
+        "No strong scam indicators were detected by the current security rules. This does not guarantee that the content is safe.";
+
+    }
+
+
+    /* =========================
+       EVIDENCE
+    ========================= */
+
+    evidenceElement.innerHTML =
+      createEvidence(
         text,
-        flags=re.IGNORECASE
-    )
+        allIndicators
+      );
 
 
-# =========================================================
-# BRAND / DOMAIN MISMATCH
-# =========================================================
+    /* =========================
+       AI ANALYSIS
+    ========================= */
 
-def analyze_brand_domain_mismatch(text: str):
+    const ai =
+      data.ai_analysis ||
+      data.ai ||
+      null;
 
-    urls = extract_urls(text)
 
-    if not urls:
+    if (
+      ai &&
+      ai.status === "success" &&
+      ai.analysis
+    ) {
 
-        return {
-            "score": 0,
-            "indicators": []
-        }
+      aiAnalysisElement.innerHTML = `
+    <strong>🤖 AI Security Analysis</strong>
+    <p>${escapeHTML(ai.analysis)}</p>
+    <small>
+      AI-assisted analysis generated by ScamShield.
+      This result is advisory and should not be treated
+      as absolute certainty.
+    </small>
+  `;
 
-    trusted_brands = {
-
-        "microsoft": [
-            "microsoft.com",
-            "live.com",
-            "office.com",
-            "outlook.com",
-        ],
-
-        "apple": [
-            "apple.com",
-            "icloud.com",
-        ],
-
-        "amazon": [
-            "amazon.com",
-            "amazon.co.uk",
-            "amazon.de",
-        ],
-
-        "paypal": [
-            "paypal.com",
-        ],
-
-        "google": [
-            "google.com",
-            "googleusercontent.com",
-        ],
     }
 
-    text_lower = text.lower()
+    else if (
+      ai &&
+      ai.status === "error"
+    ) {
 
-    score = 0
-    indicators = []
+      aiAnalysisElement.innerHTML = `
+    <strong>⚠️ AI Analysis Error</strong>
+    <p>
+      The AI service could not complete the AI analysis.
+    </p>
+    ${
+      ai.error
+        ? `<small>${escapeHTML(String(ai.error))}</small>`
+        : ""
+    }
+  `;
 
-    for brand, official_domains in trusted_brands.items():
+    }
 
-        if brand not in text_lower:
-            continue
+    else {
 
-        for url in urls:
+      aiAnalysisElement.innerHTML = `
+    <strong>🛡️ Rule-Based Security Analysis</strong>
+    <p>
+      AI analysis is currently unavailable.
+      The security engine completed the analysis
+      using explainable security rules,
+      message indicators, and URL analysis.
+    </p>
+  `;
 
-            try:
-
-                parsed = urlparse(url)
-
-                hostname = (
-                    parsed.hostname or ""
-                ).lower()
-
-                is_official = any(
-                    hostname == domain
-                    or hostname.endswith("." + domain)
-                    for domain in official_domains
-                )
-
-                if not is_official:
-
-                    score += 20
-
-                    indicators.append({
-                        "type": "brand_mismatch",
-                        "evidence":
-                            f"Message references {brand.title()}, "
-                            f"but the detected domain does not match "
-                            f"a recognized official {brand.title()} domain."
-                    })
-
-            except Exception:
-                continue
-
-    return {
-        "score": min(score, 40),
-        "indicators": indicators
     }
 
 
-# =========================================================
-# URL ANALYSIS
-# =========================================================
+    /* =========================
+       RECOMMENDATIONS
+    ========================= */
 
-def analyze_urls(text: str):
+    recommendationsElement.innerHTML =
+      "";
 
-    urls = extract_urls(text)
+    const recommendations =
+      getRecommendations(
+        totalScore,
+        allIndicators
+      );
 
-    score = 0
+    recommendationsElement.innerHTML =
+      recommendations
+        .map(
+          recommendation =>
+            `<p>${recommendation}</p>`
+        )
+        .join("");
 
-    indicators = []
 
-    suspicious_words = [
-        "verify",
-        "login",
-        "secure",
-        "account",
-        "update",
-        "confirm",
-        "password",
-        "wallet",
-        "claim",
-        "signin",
-        "payment",
-        "billing",
-        "unlock",
-        "recovery",
-    ]
+    /* =========================
+       EDUCATION
+    ========================= */
 
-    shortener_domains = [
-        "bit.ly",
-        "tinyurl.com",
-        "t.co",
-        "is.gd",
-        "ow.ly",
-        "shorturl.at",
-        "cutt.ly",
-        "rebrand.ly",
-    ]
+    educationElement.innerHTML =
+      getEducation(
+        allIndicators
+      );
 
-    for url in urls:
 
-        try:
+    /* =========================
+       SHOW RESULTS
+    ========================= */
 
-            parsed = urlparse(url)
+    loading.classList.add("hidden");
 
-            hostname = parsed.hostname or ""
-            hostname_lower = hostname.lower()
+    results.classList.remove("hidden");
 
-            # -------------------------------------------------
-            # 1. HTTP
-            # -------------------------------------------------
 
-            if parsed.scheme.lower() == "http":
+    results.scrollIntoView({
 
-                score += 15
+      behavior: "smooth",
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "URL uses HTTP instead of HTTPS"
-                })
+      block: "start"
 
-            # -------------------------------------------------
-            # 2. IP ADDRESS
-            # -------------------------------------------------
+    });
 
-            if re.match(
-                r"^\d{1,3}(\.\d{1,3}){3}$",
-                hostname
-            ):
 
-                score += 25
+    console.log(
+      "ScamShield analysis completed successfully."
+    );
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "URL uses an IP address instead of a domain name"
-                })
+  }
 
-            # -------------------------------------------------
-            # 3. LONG DOMAIN
-            # -------------------------------------------------
 
-            if len(hostname) > 35:
+  catch (error) {
 
-                score += 10
+    console.error(
+      "ScamShield analysis error:",
+      error
+    );
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "Unusually long domain"
-                })
 
-            # -------------------------------------------------
-            # 4. SUSPICIOUS KEYWORDS
-            # -------------------------------------------------
+    loading.classList.add("hidden");
 
-            matches = [
-                word
-                for word in suspicious_words
-                if word in hostname_lower
-            ]
 
-            if matches:
+    alert(
+      "Analysis error: " + error.message
+    );
 
-                score += 15
+  }
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "Suspicious URL keywords: "
-                        + ", ".join(matches)
-                })
+}
 
-            # -------------------------------------------------
-            # 5. COMPLEX SUBDOMAINS
-            # -------------------------------------------------
 
-            parts = hostname.split(".")
+/* =========================
+   EXAMPLES
+========================= */
 
-            if len(parts) >= 5:
+const examples = {
 
-                score += 15
+  bank: `
+URGENT!
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "Complex subdomain structure"
-                })
+Your bank account will be suspended today.
 
-            # -------------------------------------------------
-            # 6. @ SYMBOL
-            # -------------------------------------------------
+Verify your account immediately by clicking:
 
-            if "@" in url:
+http://secure-bank-login-example.com/verify
 
-                score += 20
+Enter your password and security code to prevent
+your account from being closed.
+  `,
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "URL contains an @ symbol that may obscure "
-                        "the real destination"
-                })
 
-            # -------------------------------------------------
-            # 7. NON-STANDARD PORT
-            # -------------------------------------------------
+  delivery: `
+FINAL DELIVERY NOTICE!
 
-            if parsed.port is not None:
+Your package could not be delivered.
 
-                if parsed.port not in [80, 443]:
+A $2.99 redelivery fee is required within 24 hours.
 
-                    score += 10
+Confirm your payment information here:
 
-                    indicators.append({
-                        "type": "url",
-                        "evidence":
-                            f"URL uses a non-standard port: "
-                            f"{parsed.port}"
-                    })
+http://delivery-payment-update-example.com/confirm
 
-            # -------------------------------------------------
-            # 8. URL SHORTENER
-            # -------------------------------------------------
+Failure to pay may result in your package being returned.
+  `,
 
-            if hostname_lower in shortener_domains:
 
-                score += 10
+  crypto: `
+CONGRATULATIONS!
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "URL uses a link-shortening service "
-                        "that hides the final destination"
-                })
+You have been selected to receive a $5,000 crypto reward.
 
-            # -------------------------------------------------
-            # 9. EXCESSIVE HYPHENS
-            # -------------------------------------------------
+Claim your reward immediately by connecting your
+wallet and verifying your account:
 
-            if hostname.count("-") >= 3:
+http://crypto-reward-claim-example.com/wallet
 
-                score += 10
+This offer expires today.
+  `,
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "Domain contains an unusually high "
-                        "number of hyphens"
-                })
 
-            # -------------------------------------------------
-            # 10. VERY LONG URL
-            # -------------------------------------------------
+  safe: `
+Hi Alex,
 
-            if len(url) > 150:
+Your appointment is confirmed for Tuesday
+at 10:00 AM.
 
-                score += 10
+Please arrive 10 minutes early.
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "URL is unusually long"
-                })
+See you then.
+  `
 
-            # -------------------------------------------------
-            # 11. ENCODED CHARACTERS
-            # -------------------------------------------------
+};
 
-            if "%" in url:
 
-                score += 5
+/* =========================
+   EXAMPLE BUTTONS
+========================= */
 
-                indicators.append({
-                    "type": "url",
-                    "evidence":
-                        "URL contains encoded characters"
-                })
+document
+  .querySelectorAll("[data-example]")
+  .forEach(button => {
 
-        except Exception:
+    button.addEventListener(
+      "click",
+      () => {
 
-            score += 20
+        const type =
+          button.dataset.example;
 
-            indicators.append({
-                "type": "url",
-                "evidence":
-                    "URL could not be safely parsed"
-            })
 
-    return {
-        "score": min(score, 60),
-        "urls_found": urls,
-        "indicators": indicators
+        inputText.value =
+          examples[type];
+
+
+        inputText.focus();
+
+      }
+    );
+
+  });
+
+
+/* =========================
+   BUTTONS
+========================= */
+
+analyzeBtn.addEventListener(
+  "click",
+  analyze
+);
+
+
+clearBtn.addEventListener(
+  "click",
+  () => {
+
+    inputText.value = "";
+
+    results.classList.add("hidden");
+
+    loading.classList.add("hidden");
+
+  }
+);
+
+
+/* =========================
+   CTRL + ENTER
+========================= */
+
+inputText.addEventListener(
+  "keydown",
+  event => {
+
+    if (
+      event.ctrlKey &&
+      event.key === "Enter"
+    ) {
+
+      analyze();
+
     }
 
+  }
+);
 
-# =========================================================
-# THREAT LEVEL
-# =========================================================
 
-def get_threat_level(score: int):
+/* =========================
+   SMART SECURITY RECOMMENDATIONS
+========================= */
 
-    if score >= 75:
-        return "CRITICAL"
+function getRecommendations(score, indicators) {
 
-    elif score >= 50:
-        return "HIGH RISK"
+  const recommendations = [];
 
-    elif score >= 25:
-        return "MEDIUM RISK"
+  const types = indicators.map(
+    indicator => indicator.type
+  );
 
-    else:
-        return "LOW RISK"
 
+  /* Credential protection */
 
-# =========================================================
-# AI ANALYSIS
-# =========================================================
+  if (types.includes("credentials")) {
 
-def analyze_with_ai(text: str):
+    recommendations.push(
+      "🔐 Do not enter your password, OTP, security code, or other credentials in response to this message."
+    );
 
-    token = os.getenv("HF_TOKEN")
+  }
 
-    if not token:
-        return {
-            "status": "error",
-            "analysis": "AI analysis is unavailable.",
-            "error": "HF_TOKEN is missing."
-        }
 
-    try:
+  /* Suspicious URL */
 
-        client = InferenceClient(
-            provider="auto",
-            token=token
-        )
+  if (types.includes("url")) {
 
-        prompt = f"""
-You are ScamShield AI, a cybersecurity assistant specialized
-in detecting phishing, scams, fraud, and social engineering.
+    recommendations.push(
+      "🔗 Do not open the detected link. If you need to access the service, open its official website or app directly."
+    );
 
-Analyze the following message defensively.
+  }
 
-MESSAGE:
-{text}
 
-Provide a concise analysis containing:
+  /* Financial protection */
 
-Threat type:
-Why it is suspicious:
-Recommended safe action:
+  if (types.includes("financial")) {
 
-Do not claim certainty.
-Do not provide instructions for attacking systems,
-stealing credentials, bypassing security, or committing fraud.
-"""
-
-        response = client.chat_completion(
-            model="Qwen/Qwen2.5-7B-Instruct",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            max_tokens=300,
-            temperature=0.2
-        )
-
-        analysis = response.choices[0].message.content
-
-        if not analysis:
-            raise ValueError("The AI model returned an empty response.")
-
-        return {
-            "status": "success",
-            "analysis": analysis
-        }
-
-    except Exception as e:
-
-        print("========== AI ERROR ==========")
-        print("AI ERROR TYPE:", type(e).__name__)
-        print("AI ERROR MESSAGE:", repr(e))
-        print("==============================")
+    recommendations.push(
+      "🏦 Do not send money or provide banking information through this message. Verify the request using an official channel."
+    );
 
-        return {
-            "status": "error",
-            "analysis": "AI analysis failed.",
-            "error": f"{type(e).__name__}: {str(e)}"
-        }
+  }
 
 
-# =========================================================
-# CROSS-SIGNAL REINFORCEMENT
-# =========================================================
-
-def calculate_reinforcement(categories):
-
-    categories = set(categories)
-
-    reinforcement = 0
-
-    # Reward scams
-    if "rewards" in categories and "urgency" in categories:
-        reinforcement += 10
-
-    if (
-        "rewards" in categories
-        and "suspicious_action" in categories
-    ):
-        reinforcement += 10
-
-    if (
-        "urgency" in categories
-        and "suspicious_action" in categories
-    ):
-        reinforcement += 8
-
-    # Three-way reward pattern
-    if (
-        "rewards" in categories
-        and "urgency" in categories
-        and "suspicious_action" in categories
-    ):
-        reinforcement += 15
-
-    # Phishing combinations
-    if (
-        "credentials" in categories
-        and "suspicious_url" in categories
-    ):
-        reinforcement += 10
-
-    if (
-        "financial" in categories
-        and "suspicious_url" in categories
-    ):
-        reinforcement += 8
-
-    if (
-        "urgency" in categories
-        and "credentials" in categories
-    ):
-        reinforcement += 6
-
-    if (
-        "threats" in categories
-        and "urgency" in categories
-    ):
-        reinforcement += 6
-
-    if (
-        "impersonation" in categories
-        and "credentials" in categories
-    ):
-        reinforcement += 6
-
-    # Strong phishing combination
-    strong_phishing_pattern = (
-        "credentials" in categories
-        and "suspicious_url" in categories
-        and (
-            "urgency" in categories
-            or "threats" in categories
-            or "impersonation" in categories
-        )
-    )
-
-    if strong_phishing_pattern:
-        reinforcement += 10
-
-    # Prevent excessive stacking.
-    return min(reinforcement, 30)
-
-
-# =========================================================
-# RECOMMENDED ACTION
-# =========================================================
-
-def get_recommended_action(score, categories):
-
-    categories = set(categories)
-
-    if score >= 75:
-
-        return (
-            "Do not click links, send money, or provide "
-            "passwords or security codes. Verify the message "
-            "through an independent official channel."
-        )
-
-    if score >= 50:
-
-        return (
-            "Treat this message as high risk. Avoid interacting "
-            "with links or requests for sensitive information "
-            "and verify the sender independently."
-        )
+  /* Urgency */
 
-    if score >= 25:
+  if (types.includes("urgency")) {
 
-        return (
-            "Pause before interacting. Check the sender, "
-            "verify the request through an official source, "
-            "and avoid sharing sensitive information."
-        )
+    recommendations.push(
+      "⏸️ Do not let urgency pressure you into acting immediately. Stop and verify the request independently."
+    );
 
-    if categories:
-
-        return (
-            "No major threat pattern was confirmed, but "
-            "remain cautious and verify unexpected requests."
-        )
-
-    return (
-        "No significant risk signals were detected. "
-        "Continue using normal security precautions."
-    )
+  }
 
-
-# =========================================================
-# EXPLAINABLE SECURITY DECISION
-# =========================================================
-
-def build_explanation(
-    total_score,
-    categories,
-    indicators
-):
 
-    categories = set(categories)
-
-    if total_score >= 75:
+  /* Threats */
 
-        return (
-            "Multiple strong indicators associated with "
-            "phishing, scams, or social engineering were "
-            "detected. The combination of signals creates "
-            "a high-confidence warning pattern."
-        )
+  if (types.includes("threats")) {
 
-    if total_score >= 50:
+    recommendations.push(
+      "⚠️ Do not respond to threats or account-closure warnings until you independently verify the situation."
+    );
 
-        return (
-            "Several independent suspicious signals were "
-            "detected. Their combination increases the "
-            "risk that this message may be a scam, phishing "
-            "attempt, or social-engineering message."
-        )
+  }
 
-    if total_score >= 25:
 
-        return (
-            "The message contains one or more suspicious "
-            "characteristics. These signals do not prove "
-            "malicious intent, but the content should be "
-            "verified before taking action."
-        )
+  /* Impersonation */
 
-    if indicators:
+  if (types.includes("impersonation")) {
 
-        detected = ", ".join(
-            sorted(categories)
-        )
+    recommendations.push(
+      "🏢 Verify the sender through the organization's official website, app, or known contact information—not through the message."
+    );
 
-        return (
-            "Some security signals were detected "
-            f"({detected}), but the available evidence "
-            "is currently limited. Treat unexpected "
-            "requests with caution."
-        )
+  }
 
-    return (
-        "No significant scam indicators were detected "
-        "by the current security rules. This does not "
-        "guarantee that the content is safe."
-    )
 
+  /* Rewards */
 
-# =========================================================
-# MAIN SECURITY ANALYSIS
-# =========================================================
+  if (types.includes("rewards")) {
 
-def analyze_message(text: str):
+    recommendations.push(
+      "🎁 Be cautious with unexpected prizes or rewards. Do not provide personal or financial information to claim them."
+    );
 
-    text = text or ""
+  }
 
-    # -----------------------------------------------------
-    # INDIVIDUAL ANALYSES
-    # -----------------------------------------------------
 
-    text_result = analyze_text(text)
+  /* General recommendation */
 
-    url_result = analyze_urls(text)
+  if (score >= 80) {
 
-    brand_result = analyze_brand_domain_mismatch(text)
+    recommendations.push(
+      "🛑 Recommended action: do not click, reply, download attachments, or provide sensitive information."
+    );
 
-    # AI is optional and does not affect core scoring.
-    ai_result = analyze_with_ai(text)
+  }
 
-    # -----------------------------------------------------
-    # COMBINE INDICATORS
-    # -----------------------------------------------------
+  else if (score >= 50) {
 
-    indicators = (
-        text_result["indicators"]
-        + url_result["indicators"]
-        + brand_result["indicators"]
-    )
+    recommendations.push(
+      "🟠 Recommended action: treat this content as suspicious and verify it through an independent trusted source."
+    );
 
-    # -----------------------------------------------------
-    # BUILD SECURITY CATEGORIES
-    # -----------------------------------------------------
+  }
 
-    categories = list(
-        text_result["categories"]
-    )
+  else if (score >= 25) {
 
-    if url_result["urls_found"]:
+    recommendations.push(
+      "🟡 Recommended action: review the message carefully and verify unexpected requests before taking action."
+    );
 
-        categories.append(
-            "suspicious_url"
-        )
+  }
 
-    categories = list(
-        dict.fromkeys(categories)
-    )
+  else {
 
-    # -----------------------------------------------------
-    # SCORE COMPONENTS
-    # -----------------------------------------------------
+    recommendations.push(
+      "🟢 No strong scam indicators were detected, but remain cautious with unexpected requests or links."
+    );
 
-    text_score = text_result["score"]
+  }
 
-    url_score = url_result["score"]
 
-    brand_score = brand_result["score"]
+  return recommendations;
 
-    # Text has the largest influence because the actual
-    # social-engineering content is often more important
-    # than URL appearance alone.
-
-    text_contribution = round(
-        (text_score / 70) * 65
-    )
-
-    url_contribution = round(
-        (url_score / 60) * 25
-    )
-
-    brand_contribution = round(
-        (brand_score / 40) * 10
-    )
-
-    base_score = (
-        text_contribution
-        + url_contribution
-        + brand_contribution
-    )
-
-    # -----------------------------------------------------
-    # CROSS-SIGNAL REINFORCEMENT
-    # -----------------------------------------------------
-
-    reinforcement = calculate_reinforcement(
-        categories
-    )
-
-    total_score = min(
-        base_score + reinforcement,
-        100
-    )
-
-    # -----------------------------------------------------
-    # THREAT LEVEL
-    # -----------------------------------------------------
-
-    threat_level = get_threat_level(
-        total_score
-    )
-
-    # -----------------------------------------------------
-    # THREAT CATEGORY
-    # -----------------------------------------------------
-
-    if not categories:
-
-        category = (
-            "No significant threat detected"
-        )
-
-    elif (
-        "credentials" in categories
-        and "suspicious_url" in categories
-    ):
-
-        category = "Credential Phishing"
-
-    elif (
-        "financial" in categories
-        and "suspicious_url" in categories
-    ):
-
-        category = "Financial Phishing"
-
-    elif "financial" in categories:
-
-        category = "Financial Scam"
-
-    elif (
-        "rewards" in categories
-        and (
-            "urgency" in categories
-            or "suspicious_action" in categories
-        )
-    ):
-
-        category = "Reward Scam"
-
-    elif "suspicious_url" in categories:
-
-        category = "Suspicious Link"
-
-    elif "impersonation" in categories:
-
-        category = "Impersonation"
-
-    elif "threats" in categories:
-
-        category = "Social Engineering"
-
-    elif "credentials" in categories:
-
-        category = "Credential Theft Attempt"
-
-    elif "urgency" in categories:
-
-        category = "Social Engineering"
-
-    else:
-
-        category = "Suspicious Content"
-
-    # -----------------------------------------------------
-    # RISK FACTORS
-    # -----------------------------------------------------
-
-    risk_factors = []
-
-    if "urgency" in categories:
-
-        risk_factors.append(
-            "Urgency pressure: the message pushes "
-            "the recipient to act quickly without "
-            "taking time to verify the request."
-        )
-
-    if "credentials" in categories:
-
-        risk_factors.append(
-            "Credential harvesting risk: the message "
-            "requests or references sensitive authentication "
-            "information such as passwords or security codes."
-        )
-
-    if "financial" in categories:
-
-        risk_factors.append(
-            "Financial risk: the message involves money, "
-            "payment, banking information, or cryptocurrency."
-        )
-
-    if "threats" in categories:
-
-        risk_factors.append(
-            "Threat-based manipulation: the message uses "
-            "possible account suspension or consequences "
-            "to pressure the recipient."
-        )
-
-    if "impersonation" in categories:
-
-        risk_factors.append(
-            "Possible impersonation: the message uses "
-            "language associated with a trusted organization "
-            "or support service."
-        )
-
-    if "rewards" in categories:
-
-        risk_factors.append(
-            "Reward manipulation: the message uses prizes, "
-            "unexpected benefits, or winnings to encourage "
-            "the recipient to interact."
-        )
-
-    if "suspicious_action" in categories:
-
-        risk_factors.append(
-            "Suspicious action request: the message "
-            "encourages the recipient to click, open, "
-            "claim, or interact immediately."
-        )
-
-    # -----------------------------------------------------
-    # URL RISK FACTORS
-    # -----------------------------------------------------
-
-    for indicator in url_result["indicators"]:
-
-        evidence = indicator.get(
-            "evidence",
-            ""
-        )
-
-        if evidence:
-
-            risk_factors.append(
-                "Suspicious URL characteristic: "
-                + evidence
-                + "."
-            )
-
-    # -----------------------------------------------------
-    # BRAND / DOMAIN MISMATCH
-    # -----------------------------------------------------
-
-    brand_mismatch_detected = any(
-        indicator.get("type") == "brand_mismatch"
-        for indicator in brand_result["indicators"]
-    )
-
-    for indicator in brand_result["indicators"]:
-
-        evidence = indicator.get(
-            "evidence",
-            ""
-        )
-
-        if evidence:
-
-            risk_factors.append(
-                "Brand/domain mismatch: "
-                + evidence
-            )
-
-    # -----------------------------------------------------
-    # REMOVE DUPLICATES
-    # -----------------------------------------------------
-
-    risk_factors = list(
-        dict.fromkeys(risk_factors)
-    )
-
-    # -----------------------------------------------------
-    # EXPLANATION
-    # -----------------------------------------------------
-
-    explanation = build_explanation(
-        total_score,
-        categories,
-        indicators
-    )
-
-    # -----------------------------------------------------
-    # RECOMMENDED ACTION
-    # -----------------------------------------------------
-
-    recommended_action = get_recommended_action(
-        total_score,
-        categories
-    )
-
-    # -----------------------------------------------------
-    # FINAL SECURITY REPORT
-    # -----------------------------------------------------
-
-    return {
-
-        "score":
-            total_score,
-
-        "text_contribution":
-            text_contribution,
-
-        "url_contribution":
-            url_contribution,
-
-        "brand_contribution":
-            brand_contribution,
-
-        "threat_level":
-            threat_level,
-
-        "category":
-            category,
-
-        "categories":
-            categories,
-
-        "indicators":
-            indicators,
-
-        "risk_factors":
-            risk_factors,
-
-        "reinforcement_score":
-            reinforcement,
-
-        "text_score":
-            text_score,
-
-        "url_score":
-            url_score,
-
-        "brand_score":
-            brand_score,
-
-        "urls_found":
-            url_result["urls_found"],
-
-        "explanation":
-            explanation,
-
-        "recommended_action":
-            recommended_action,
-
-        "ai_analysis":
-            ai_result,
-
-        "message":
-            text
-    }
+}
