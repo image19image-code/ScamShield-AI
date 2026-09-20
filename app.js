@@ -1,4 +1,3 @@
-
 const inputText = document.getElementById("inputText");
 const analyzeBtn = document.getElementById("analyzeBtn");
 const clearBtn = document.getElementById("clearBtn");
@@ -1564,19 +1563,14 @@ async function analyze() {
     results.classList.remove("hidden");
 
 
-    const scoreBox =
-  document.querySelector(".score");
+    const scoreElement =
+  document.getElementById("score");
 
-if (scoreBox) {
+if (scoreElement) {
 
-  const targetPosition =
-    scoreBox.getBoundingClientRect().top +
-    window.pageYOffset -
-    20;
-
-  window.scrollTo({
-    top: targetPosition,
-    behavior: "smooth"
+  scoreElement.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
   });
 
 }
