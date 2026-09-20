@@ -1194,7 +1194,7 @@ async function analyze() {
 
     const response =
       await fetch(
-        "http://127.0.0.1:8000/analyze",
+        "https://scamshield-ai-api-82p6.onrender.com/analyze",
         {
           method: "POST",
 
