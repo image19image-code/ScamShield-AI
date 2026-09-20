@@ -572,11 +572,24 @@ Analyze the following message defensively.
 MESSAGE:
 {text}
 
-Provide a concise analysis containing:
+Return plain text only.
+
+Do not use Markdown.
+Do not use asterisks (*).
+Do not use hashtags (#).
+Do not use backticks.
+Do not use bullet symbols.
+
+Use exactly this structure:
 
 Threat type:
+One concise threat classification.
+
 Why it is suspicious:
+2 to 4 concise reasons.
+
 Recommended safe action:
+2 to 4 concise safe actions.
 
 Do not claim certainty.
 Do not provide instructions for attacking systems,
@@ -598,18 +611,26 @@ stealing credentials, bypassing security, or committing fraud.
         analysis = response.choices[0].message.content
 
         if not analysis:
-            raise ValueError("The AI model returned an empty response.")
+            raise ValueError(
+                "The AI model returned an empty response."
+            )
 
         return {
             "status": "success",
-            "analysis": analysis
+            "analysis": analysis.strip()
         }
 
     except Exception as e:
 
         print("========== AI ERROR ==========")
-        print("AI ERROR TYPE:", type(e).__name__)
-        print("AI ERROR MESSAGE:", repr(e))
+        print(
+            "AI ERROR TYPE:",
+            type(e).__name__
+        )
+        print(
+            "AI ERROR MESSAGE:",
+            repr(e)
+        )
         print("==============================")
 
         return {
