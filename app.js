@@ -13,7 +13,6 @@ const results = document.getElementById("results");
 const scoreElement = document.getElementById("score");
 const threatLevelElement = document.getElementById("threatLevel");
 const categoryElement = document.getElementById("category");
-
 const indicatorsElement = document.getElementById("indicators");
 const riskFactorsElement = document.getElementById("riskFactors");
 const explanationElement = document.getElementById("explanation");
@@ -22,6 +21,7 @@ const evidenceElement = document.getElementById("evidence");
 const scoreBreakdownElement = document.getElementById("scoreBreakdown");
 const recommendationsElement = document.getElementById("recommendations");
 const educationElement = document.getElementById("education");
+
 
 /* =========================
    SCAM PATTERNS
@@ -35,33 +35,85 @@ const scamPatterns = {
     "right now",
     "today",
     "within 24 hours",
+    "within 48 hours",
     "expires",
-    "last chance"
+    "last chance",
+    "limited time",
+    "do it now",
+    "respond now"
   ],
 
   credentials: [
     "password",
     "verify your account",
     "verify your identity",
+    "verification",
+    "verify",
     "login",
     "username",
     "security code",
+    "security codes",
     "otp",
     "one time password",
-    "sign in"
+    "one-time password",
+    "sign in",
+    "confirm your account",
+    "confirm your identity",
+    "account information",
+    "security alert",
+    "reset your password",
+    "update your account",
+    "enter your password",
+    "provide your password",
+    "type your password",
+    "submit your password",
+    "password to confirm",
+    "password to verify",
+    "login with your password",
+    "authentication code",
+    "verification code",
+    "access code"
+  ],
+
+  suspicious_action: [
+    "click here",
+    "click the link",
+    "click this link",
+    "open the link",
+    "follow the link",
+    "review your account",
+    "verify now",
+    "click to verify",
+    "click here to verify",
+    "click here to claim",
+    "click to claim",
+    "claim now",
+    "claim your prize",
+    "claim your reward",
+    "tap here",
+    "open now",
+    "confirm now",
+    "download now"
   ],
 
   financial: [
     "credit card",
+    "debit card",
     "bank account",
     "payment",
     "send money",
     "transfer money",
+    "wire transfer",
     "bitcoin",
     "crypto",
+    "cryptocurrency",
     "wallet",
     "refund",
-    "fee"
+    "fee",
+    "invoice",
+    "billing",
+    "payment information",
+    "banking information"
   ],
 
   threats: [
@@ -72,21 +124,30 @@ const scamPatterns = {
     "legal action",
     "police",
     "penalty",
-    "deactivated"
+    "deactivated",
+    "terminate",
+    "terminated",
+    "account will be closed",
+    "account will be suspended",
+    "lose access"
   ],
 
   rewards: [
     "winner",
     "you won",
+    "you have won",
     "prize",
     "free money",
     "claim your reward",
     "lottery",
-    "congratulations"
+    "congratulations",
+    "cash prize",
+    "bonus",
+    "gift card",
+    "reward"
   ],
 
   impersonation: [
-    "official",
     "security team",
     "support team",
     "customer service",
@@ -94,9 +155,14 @@ const scamPatterns = {
     "paypal",
     "microsoft",
     "apple",
-    "amazon"
+    "amazon",
+    "google",
+    "netflix",
+    "official support",
+    "account security"
   ]
 };
+
 
 /* =========================
    LABELS
@@ -110,6 +176,7 @@ function formatCategory(category) {
     threats: "Threat / Fear Tactic",
     rewards: "Reward Scam Indicator",
     impersonation: "Possible Impersonation",
+    suspicious_action: "Suspicious Action",
     url: "Suspicious URL",
     brand_mismatch: "Brand / Domain Mismatch"
   };
@@ -117,16 +184,17 @@ function formatCategory(category) {
   return names[category] || category;
 }
 
+
 function getDescription(category) {
   const descriptions = {
     urgency:
       "The message pressures the recipient to act quickly without taking time to verify the request.",
 
     credentials:
-      "The message appears to request authentication or account information.",
+      "The message requests or references sensitive authentication information.",
 
     financial:
-      "The message involves money, payment, financial information, or cryptocurrency.",
+      "The message involves money, payment, banking information, or cryptocurrency.",
 
     threats:
       "The message uses fear, consequences, or threats to influence the recipient.",
@@ -136,6 +204,9 @@ function getDescription(category) {
 
     impersonation:
       "The message contains language associated with trusted organizations or support services.",
+
+    suspicious_action:
+      "The message encourages the recipient to click, open, claim, download, or interact.",
 
     url:
       "The detected URL contains characteristics that deserve additional verification.",
@@ -150,15 +221,19 @@ function getDescription(category) {
   );
 }
 
+
 /* =========================
    FRONTEND FALLBACK ANALYSIS
 ========================= */
 
 function analyzeText(text) {
-  const lowerText = text.toLowerCase();
-  const indicators = [];
+  const lowerText = String(text || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 
-  let score = 0;
+  const indicators = [];
+  const categories = [];
 
   const weights = {
     credentials: 25,
@@ -166,35 +241,51 @@ function analyzeText(text) {
     urgency: 15,
     threats: 15,
     rewards: 15,
-    impersonation: 10
+    impersonation: 10,
+    suspicious_action: 10
   };
 
-  for (const category in scamPatterns) {
-    const matches = scamPatterns[category].filter((pattern) =>
-      lowerText.includes(pattern)
-    );
+  Object.entries(scamPatterns).forEach(
+    ([category, patterns]) => {
+      const matches = patterns.filter(
+        (pattern) => lowerText.includes(pattern)
+      );
 
-    if (!matches.length) {
-      continue;
+      if (!matches.length) {
+        return;
+      }
+
+      categories.push(category);
+
+      matches.forEach((match) => {
+        indicators.push({
+          type: category,
+          category,
+          title: formatCategory(category),
+          description: getDescription(category),
+          evidence: match,
+          matches: [match]
+        });
+      });
     }
+  );
 
-    score += weights[category] || 0;
-
-    indicators.push({
-      type: category,
-      category,
-      matches,
-      title: formatCategory(category),
-      description: getDescription(category),
-      evidence: matches.join(", ")
-    });
-  }
+  const score = Math.min(
+    categories.reduce(
+      (total, category) =>
+        total + (weights[category] || 0),
+      0
+    ),
+    70
+  );
 
   return {
-    score: Math.min(score, 100),
+    score,
+    categories,
     indicators
   };
 }
+
 
 /* =========================
    THREAT LEVEL
@@ -232,8 +323,9 @@ function getThreatLevel(score) {
   };
 }
 
+
 /* =========================
-   ESCAPE HTML / REGEX
+   HTML SAFETY
 ========================= */
 
 function escapeHTML(value) {
@@ -242,9 +334,23 @@ function escapeHTML(value) {
   return div.innerHTML;
 }
 
+
 function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return String(value).replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&"
+  );
 }
+
+
+function cleanAIText(value) {
+  return String(value || "")
+    .replace(/\\-/g, "-")
+    .replace(/\r/g, "")
+    .replace(/\u00a0/g, " ")
+    .trim();
+}
+
 
 /* =========================
    EVIDENCE
@@ -252,22 +358,25 @@ function escapeRegExp(value) {
 
 function createEvidence(text, indicators) {
   let result = escapeHTML(text);
-
   const matches = [];
 
   indicators.forEach((indicator) => {
-    if (!Array.isArray(indicator.matches)) {
-      return;
+    if (Array.isArray(indicator.matches)) {
+      indicator.matches.forEach((match) => {
+        if (match) {
+          matches.push(String(match));
+        }
+      });
     }
 
-    indicator.matches.forEach((match) => {
-      if (match) {
-        matches.push(String(match));
-      }
-    });
+    if (indicator.evidence) {
+      matches.push(String(indicator.evidence));
+    }
   });
 
-  const uniqueMatches = [...new Set(matches)]
+  const uniqueMatches = [
+    ...new Set(matches)
+  ]
     .sort((a, b) => b.length - a.length)
     .map(escapeHTML)
     .map(escapeRegExp);
@@ -281,8 +390,12 @@ function createEvidence(text, indicators) {
     "gi"
   );
 
-  return result.replace(regex, "<mark>$1</mark>");
+  return result.replace(
+    regex,
+    "<mark>$1</mark>"
+  );
 }
+
 
 /* =========================
    NORMALIZE BACKEND DATA
@@ -304,47 +417,39 @@ function normalizeIndicators(indicators) {
       indicator?.description ??
       "";
 
-    const title =
-      indicator?.title ||
-      formatCategory(type);
-
-    const description =
-      indicator?.description ||
-      indicator?.evidence ||
-      getDescription(type);
-
-    const matches = Array.isArray(indicator?.matches)
-      ? indicator.matches
-      : evidence
-        ? [String(evidence)]
-        : [];
-
     return {
       ...indicator,
       type,
       category: type,
-      title,
-      description,
+      title:
+        indicator?.title ||
+        formatCategory(type),
+      description:
+        indicator?.description ||
+        indicator?.evidence ||
+        getDescription(type),
       evidence: String(evidence),
-      matches
+      matches: Array.isArray(indicator?.matches)
+        ? indicator.matches
+        : evidence
+          ? [String(evidence)]
+          : []
     };
   });
 }
 
+
 /* =========================
-   REMOVE DUPLICATES
+   REMOVE EXACT DUPLICATES
 ========================= */
 
-function uniqueByType(indicators) {
+function uniqueIndicators(indicators) {
   const result = [];
   const seen = new Set();
 
   indicators.forEach((indicator) => {
     const key =
-      indicator.type ||
-      indicator.category ||
-      indicator.title ||
-      indicator.description;
+      `${indicator.type}::${indicator.evidence}`;
 
     if (!seen.has(key)) {
       seen.add(key);
@@ -355,325 +460,24 @@ function uniqueByType(indicators) {
   return result;
 }
 
-/* =========================
-   SCORE BREAKDOWN
-========================= */
-
-function renderDetailedSecurityReasoning(
-  finalScore,
-  textContribution,
-  urlContribution,
-  reinforcementScore,
-  indicators
-) {
-  const types = indicators.map((item) => item.type);
-
-  const messageSignals = [];
-
-  if (types.includes("credentials")) {
-    messageSignals.push("🔐 Credential request");
-  }
-
-  if (types.includes("financial")) {
-    messageSignals.push("💳 Financial risk");
-  }
-
-  if (types.includes("urgency")) {
-    messageSignals.push("⏱️ Urgency pressure");
-  }
-
-  if (types.includes("threats")) {
-    messageSignals.push("⚠️ Threat / fear tactic");
-  }
-
-  if (types.includes("impersonation")) {
-    messageSignals.push("🏢 Possible impersonation");
-  }
-
-  if (types.includes("rewards")) {
-    messageSignals.push("🎁 Unexpected reward");
-  }
-
-  const urlSignals = [];
-
-  indicators
-    .filter((item) => item.type === "url")
-    .forEach((indicator) => {
-      const evidence = String(
-        indicator.evidence ||
-        indicator.description ||
-        ""
-      ).toLowerCase();
-
-      if (evidence.includes("http instead of https")) {
-        urlSignals.push("🔗 HTTP instead of HTTPS");
-      }
-
-      if (evidence.includes("suspicious url keywords")) {
-        urlSignals.push("🔎 Suspicious URL keywords");
-      }
-
-      if (evidence.includes("hyphen")) {
-        urlSignals.push("➖ Unusual hyphen usage");
-      }
-
-      if (evidence.includes("long domain")) {
-        urlSignals.push("🌐 Unusually long domain");
-      }
-
-      if (evidence.includes("direct ip")) {
-        urlSignals.push("🌐 Direct IP address");
-      }
-
-      if (evidence.includes("@")) {
-        urlSignals.push("⚠️ URL contains @ symbol");
-      }
-    });
-
-  const reinforcementSignals = [];
-
-  if (
-    types.includes("credentials") &&
-    types.includes("url")
-  ) {
-    reinforcementSignals.push(
-      "🔐 Credentials + suspicious URL"
-    );
-  }
-
-  if (
-    types.includes("financial") &&
-    types.includes("url")
-  ) {
-    reinforcementSignals.push(
-      "💳 Financial risk + suspicious URL"
-    );
-  }
-
-  if (
-    types.includes("urgency") &&
-    types.includes("credentials")
-  ) {
-    reinforcementSignals.push(
-      "⏱️ Urgency + credentials"
-    );
-  }
-
-  if (
-    types.includes("threats") &&
-    types.includes("urgency")
-  ) {
-    reinforcementSignals.push(
-      "⚠️ Threat + urgency"
-    );
-  }
-
-  if (
-    types.includes("impersonation") &&
-    types.includes("credentials")
-  ) {
-    reinforcementSignals.push(
-      "🏢 Impersonation + credentials"
-    );
-  }
-
-  if (
-    types.includes("credentials") &&
-    types.includes("url") &&
-    (
-      types.includes("urgency") ||
-      types.includes("threats") ||
-      types.includes("impersonation")
-    )
-  ) {
-    reinforcementSignals.push(
-      "🎯 Strong phishing pattern"
-    );
-  }
-
-  const rawScore =
-    textContribution +
-    urlContribution +
-    reinforcementScore;
-
-  const section = (
-    title,
-    items,
-    contribution
-  ) => {
-    return `
-      <div style="
-        margin-top:14px;
-        padding:12px;
-        border-radius:10px;
-        background:rgba(255,255,255,.03);
-      ">
-        <div style="
-          display:flex;
-          justify-content:space-between;
-          align-items:center;
-          gap:12px;
-        ">
-          <strong>${title}</strong>
-          <strong>+${contribution}</strong>
-        </div>
-
-        <div style="margin-top:8px;">
-          ${
-            items.length
-              ? items
-                  .map(
-                    (item) => `
-                      <div style="
-                        padding:7px 0;
-                        border-bottom:1px solid rgba(255,255,255,.06);
-                        opacity:.9;
-                      ">
-                        ${escapeHTML(item)}
-                      </div>
-                    `
-                  )
-                  .join("")
-              : `
-                <div style="opacity:.65;">
-                  No major signals detected.
-                </div>
-              `
-          }
-        </div>
-      </div>
-    `;
-  };
-
-  return `
-    <div style="
-      margin-top:18px;
-      padding-top:18px;
-      border-top:1px solid rgba(255,255,255,.10);
-    ">
-
-      <div style="
-        font-size:1.05rem;
-        font-weight:700;
-      ">
-        🧠 WHY ${finalScore}/100?
-      </div>
-
-      <div style="
-        font-size:.85rem;
-        opacity:.7;
-        margin-top:5px;
-        line-height:1.6;
-      ">
-        The score is derived from detected security signals,
-        URL characteristics and cross-signal reinforcement.
-      </div>
-
-      ${section(
-        "MESSAGE ANALYSIS",
-        messageSignals,
-        textContribution
-      )}
-
-      ${section(
-        "URL ANALYSIS",
-        urlSignals,
-        urlContribution
-      )}
-
-      ${section(
-        "CROSS-SIGNAL REINFORCEMENT",
-        reinforcementSignals,
-        reinforcementScore
-      )}
-
-      <div style="
-        margin-top:14px;
-        padding:10px 12px;
-        border-radius:10px;
-        background:rgba(255,255,255,.025);
-        font-size:.8rem;
-        opacity:.7;
-      ">
-        Raw calculated contribution:
-        <strong>${rawScore}</strong>
-        → normalized final score:
-        <strong>${finalScore}/100</strong>
-      </div>
-
-      <div style="
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        gap:16px;
-        margin-top:16px;
-        padding:13px;
-        border-radius:10px;
-        background:rgba(255,255,255,.05);
-      ">
-        <strong>FINAL RISK SCORE</strong>
-        <strong>${finalScore}/100</strong>
-      </div>
-
-    </div>
-  `;
-}
 
 /* =========================
-   RENDER SCORE BREAKDOWN
-========================= */
-
-function renderScoreBreakdown(
-  finalScore,
-  textContribution,
-  urlContribution,
-  reinforcementScore,
-  indicators
-) {
-  if (!scoreBreakdownElement) {
-    return;
-  }
-
-  let reasoning =
-    document.getElementById(
-      "detailedSecurityReasoning"
-    );
-
-  if (!reasoning) {
-    reasoning = document.createElement("div");
-    reasoning.id =
-      "detailedSecurityReasoning";
-
-    scoreBreakdownElement.appendChild(
-      reasoning
-    );
-  }
-
-  // Replace instead of append to prevent duplicate reports.
-  reasoning.innerHTML =
-    renderDetailedSecurityReasoning(
-      finalScore,
-      textContribution,
-      urlContribution,
-      reinforcementScore,
-      indicators
-    );
-}
-
-/* =========================
-   INDICATORS
+   GROUPED DETECTED INDICATORS
 ========================= */
 
 function renderIndicators(indicators) {
   indicatorsElement.innerHTML = "";
 
-  if (!indicators.length) {
+  if (!indicators || !indicators.length) {
     indicatorsElement.innerHTML = `
       <div
         class="indicator"
         style="border-left-color:#42e8a0"
       >
-        <strong>🟢 No strong indicators detected</strong>
+        <strong>
+          🟢 No strong indicators detected
+        </strong>
+
         <span>
           The scanner did not find major scam patterns
           in this content.
@@ -684,40 +488,112 @@ function renderIndicators(indicators) {
     return;
   }
 
+  const groups = new Map();
+
   indicators.forEach((indicator) => {
+    const type =
+      indicator.type ||
+      indicator.category ||
+      "unknown";
+
+    if (!groups.has(type)) {
+      groups.set(type, {
+        type,
+        title:
+          indicator.title ||
+          formatCategory(type),
+        evidence: []
+      });
+    }
+
+    const group = groups.get(type);
+
+    const evidenceItems = [
+      ...(Array.isArray(indicator.matches)
+        ? indicator.matches
+        : []),
+      indicator.evidence
+    ]
+      .filter(Boolean)
+      .map(String);
+
+    evidenceItems.forEach((item) => {
+      if (!group.evidence.includes(item)) {
+        group.evidence.push(item);
+      }
+    });
+  });
+
+  const icons = {
+    urgency: "⏱️",
+    credentials: "🔐",
+    financial: "💳",
+    threats: "⚠️",
+    impersonation: "🏢",
+    rewards: "🎁",
+    suspicious_action: "🖱️",
+    url: "🔗",
+    brand_mismatch: "🏢"
+  };
+
+  groups.forEach((group) => {
     const div =
       document.createElement("div");
 
     div.className = "indicator";
 
-    if (
-      indicator.type ===
-      "brand_mismatch"
-    ) {
-      div.style.borderLeftColor =
-        "#a855f7";
+    if (group.type === "brand_mismatch") {
+      div.style.borderLeftColor = "#a855f7";
     }
 
     const icon =
-      indicator.type ===
-      "brand_mismatch"
-        ? "🏢"
-        : "⚠️";
+      icons[group.type] || "⚠️";
+
+    const evidenceHTML =
+      group.evidence.length
+        ? `
+          <div style="
+            margin-top:9px;
+            display:flex;
+            flex-direction:column;
+            gap:6px;
+          ">
+            ${group.evidence
+              .map(
+                (item) => `
+                  <div style="
+                    padding:7px 9px;
+                    border-radius:8px;
+                    background:rgba(255,255,255,.035);
+                    border:1px solid rgba(255,255,255,.05);
+                    font-size:.82rem;
+                    line-height:1.5;
+                  ">
+                    <span style="opacity:.7">
+                      ↳
+                    </span>
+                    ${escapeHTML(item)}
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+        `
+        : "";
 
     div.innerHTML = `
       <strong>
         ${icon}
-        ${escapeHTML(indicator.title)}
+        ${escapeHTML(group.title)}
       </strong>
 
-      <span>
-        ${escapeHTML(indicator.description)}
-      </span>
+      ${evidenceHTML}
     `;
 
     indicatorsElement.appendChild(div);
   });
 }
+
 
 /* =========================
    RISK FACTORS
@@ -732,8 +608,8 @@ function renderRiskFactors(riskFactors) {
         ? riskFactors
         : []
       )
-      .map((factor) => String(factor))
-      .filter(Boolean)
+        .map((factor) => String(factor))
+        .filter(Boolean)
     )
   ];
 
@@ -780,8 +656,9 @@ function renderRiskFactors(riskFactors) {
   );
 }
 
+
 /* =========================
-   EXPLANATION
+   EXPLANATION FALLBACK
 ========================= */
 
 function getExplanation(score) {
@@ -808,6 +685,7 @@ function getExplanation(score) {
   );
 }
 
+
 /* =========================
    AI ANALYSIS
 ========================= */
@@ -819,26 +697,46 @@ function renderAIAnalysis(ai) {
     typeof ai.analysis === "string" &&
     ai.analysis.trim()
   ) {
+    const cleanAnalysis =
+      cleanAIText(ai.analysis);
+
     aiAnalysisElement.innerHTML = `
-      <strong>🤖 AI Security Analysis</strong>
+      <strong>
+        🤖 AI Security Analysis
+      </strong>
 
-      <p>
-        ${escapeHTML(ai.analysis.trim())}
-      </p>
+      <div style="
+        margin-top:12px;
+        padding:13px;
+        border-radius:10px;
+        background:rgba(255,255,255,.03);
+        border:1px solid rgba(255,255,255,.05);
+        white-space:pre-line;
+        line-height:1.7;
+        font-size:.9rem;
+      ">
+        ${escapeHTML(cleanAnalysis)}
+      </div>
 
-      <small>
+      <small style="
+        display:block;
+        margin-top:10px;
+        opacity:.65;
+        line-height:1.5;
+      ">
         AI-assisted explanation.
-        The final risk score is determined by the
-        explainable security engine.
+        The final risk score is determined by
+        the explainable security engine.
       </small>
     `;
 
     return;
   }
 
-  // AI failure no longer breaks or degrades the main report.
   aiAnalysisElement.innerHTML = `
-    <strong>🧠 Explainable Security Analysis</strong>
+    <strong>
+      🧠 Explainable Security Analysis
+    </strong>
 
     <p>
       The AI explanation is currently unavailable.
@@ -854,6 +752,7 @@ function renderAIAnalysis(ai) {
     </small>
   `;
 }
+
 
 /* =========================
    RECOMMENDATIONS
@@ -908,26 +807,9 @@ function getRecommendations(score, indicators) {
     );
   }
 
-  if (score >= 80) {
-    recommendations.push(
-      "🛑 Recommended action: do not click, reply, download attachments, or provide sensitive information."
-    );
-  } else if (score >= 50) {
-    recommendations.push(
-      "🟠 Recommended action: treat this content as suspicious and verify it through an independent trusted source."
-    );
-  } else if (score >= 25) {
-    recommendations.push(
-      "🟡 Recommended action: review the message carefully and verify unexpected requests before taking action."
-    );
-  } else {
-    recommendations.push(
-      "🟢 No strong scam indicators were detected, but remain cautious with unexpected requests or links."
-    );
-  }
-
   return [...new Set(recommendations)];
 }
+
 
 /* =========================
    EDUCATION
@@ -971,6 +853,7 @@ function getEducation(indicators) {
   `;
 }
 
+
 /* =========================
    SCORE UI
 ========================= */
@@ -983,7 +866,10 @@ function updateScoreUI(
 ) {
   const safeScore = Math.max(
     0,
-    Math.min(100, Number(totalScore) || 0)
+    Math.min(
+      100,
+      Number(totalScore) || 0
+    )
   );
 
   scoreElement.textContent =
@@ -998,87 +884,542 @@ function updateScoreUI(
   threatLevelElement.style.color =
     threat.color;
 
-  categoryElement.textContent =
-    "";
+  categoryElement.textContent = "";
 
-  if (
-    scoreBreakdownElement
-  ) {
-    const scoreBar =
-      document.getElementById(
-        "scoreBar"
-      );
+  const scoreBar =
+    document.getElementById("scoreBar");
 
-    const scorePercentage =
-      document.getElementById(
-        "scorePercentage"
-      );
+  const scorePercentage =
+    document.getElementById(
+      "scorePercentage"
+    );
 
-    const textContributionElement =
-      document.getElementById(
-        "textContribution"
-      );
+  const textContributionElement =
+    document.getElementById(
+      "textContribution"
+    );
 
-    const urlContributionElement =
-      document.getElementById(
-        "urlContribution"
-      );
+  const urlContributionElement =
+    document.getElementById(
+      "urlContribution"
+    );
 
-    const reinforcementScoreElement =
-      document.getElementById(
-        "reinforcementScore"
-      );
+  const reinforcementScoreElement =
+    document.getElementById(
+      "reinforcementScore"
+    );
 
-    const finalScoreElement =
-      document.getElementById(
-        "finalScore"
-      );
+  const finalScoreElement =
+    document.getElementById(
+      "finalScore"
+    );
 
-    const scoreBarContainer =
-      document.querySelector(
-        ".score-bar-container"
-      );
+  const scoreBarContainer =
+    document.querySelector(
+      ".score-bar-container"
+    );
 
-    if (scoreBarContainer) {
-      scoreBarContainer.style.setProperty(
-        "--score",
-        `${safeScore}%`
-      );
-    }
+  if (scoreBarContainer) {
+    scoreBarContainer.style.setProperty(
+      "--score",
+      `${safeScore}%`
+    );
+  }
 
-    if (scoreBar) {
-      scoreBar.style.width =
-        `${safeScore}%`;
-    }
+  if (scoreBar) {
+    scoreBar.style.width =
+      `${safeScore}%`;
+  }
 
-    if (scorePercentage) {
-      scorePercentage.textContent =
-        `${safeScore}/100`;
-    }
+  if (scorePercentage) {
+    scorePercentage.textContent =
+      `${safeScore}/100`;
+  }
 
-    if (textContributionElement) {
-      textContributionElement.textContent =
-        `+${textContribution}`;
-    }
+  if (textContributionElement) {
+    textContributionElement.textContent =
+      `+${textContribution}`;
+  }
 
-    if (urlContributionElement) {
-      urlContributionElement.textContent =
-        `+${urlContribution}`;
-    }
+  if (urlContributionElement) {
+    urlContributionElement.textContent =
+      `+${urlContribution}`;
+  }
 
-    if (reinforcementScoreElement) {
-      reinforcementScoreElement.textContent =
-        `+${reinforcementScore}`;
-    }
+  if (reinforcementScoreElement) {
+    reinforcementScoreElement.textContent =
+      `+${reinforcementScore}`;
+  }
 
-    if (finalScoreElement) {
-      finalScoreElement.textContent =
-        `${safeScore}/100`;
-    }
+  if (finalScoreElement) {
+    finalScoreElement.textContent =
+      `${safeScore}/100`;
   }
 
   return safeScore;
 }
+
+
+/* =========================
+   SCORE BREAKDOWN
+========================= */
+
+function renderDetailedSecurityReasoning(
+  finalScore,
+  textContribution,
+  urlContribution,
+  reinforcementScore,
+  indicators
+) {
+  const types = indicators.map(
+    (item) => item.type
+  );
+
+  const messageSignals = [];
+
+  if (types.includes("credentials")) {
+    messageSignals.push(
+      "🔐 Credential request"
+    );
+  }
+
+  if (types.includes("financial")) {
+    messageSignals.push(
+      "💳 Financial risk"
+    );
+  }
+
+  if (types.includes("urgency")) {
+    messageSignals.push(
+      "⏱️ Urgency pressure"
+    );
+  }
+
+  if (types.includes("threats")) {
+    messageSignals.push(
+      "⚠️ Threat / fear tactic"
+    );
+  }
+
+  if (types.includes("impersonation")) {
+    messageSignals.push(
+      "🏢 Possible impersonation"
+    );
+  }
+
+  if (types.includes("rewards")) {
+    messageSignals.push(
+      "🎁 Unexpected reward"
+    );
+  }
+
+  if (types.includes("suspicious_action")) {
+    messageSignals.push(
+      "🖱️ Suspicious action request"
+    );
+  }
+
+  const urlSignals = [];
+
+  indicators
+    .filter(
+      (item) => item.type === "url"
+    )
+    .forEach((indicator) => {
+      const evidence = String(
+        indicator.evidence ||
+        indicator.description ||
+        ""
+      ).toLowerCase();
+
+      if (
+        evidence.includes(
+          "http instead of https"
+        )
+      ) {
+        urlSignals.push(
+          "🔗 HTTP instead of HTTPS"
+        );
+      }
+
+      if (
+        evidence.includes(
+          "suspicious url keywords"
+        )
+      ) {
+        urlSignals.push(
+          "🔎 Suspicious URL keywords"
+        );
+      }
+
+      if (evidence.includes("hyphen")) {
+        urlSignals.push(
+          "➖ Unusually high number of hyphens"
+        );
+      }
+
+      if (evidence.includes("long domain")) {
+        urlSignals.push(
+          "🌐 Unusually long domain"
+        );
+      }
+
+      if (evidence.includes("ip address")) {
+        urlSignals.push(
+          "🌐 IP address used instead of a domain"
+        );
+      }
+
+      if (evidence.includes("@")) {
+        urlSignals.push(
+          "⚠️ URL contains @ symbol"
+        );
+      }
+
+      if (evidence.includes("non-standard port")) {
+        urlSignals.push(
+          "🔌 Non-standard port"
+        );
+      }
+
+      if (evidence.includes("shortening service")) {
+        urlSignals.push(
+          "🔗 URL shortening service"
+        );
+      }
+
+      if (evidence.includes("encoded characters")) {
+        urlSignals.push(
+          "🔐 Encoded URL characters"
+        );
+      }
+
+      if (evidence.includes("complex subdomain")) {
+        urlSignals.push(
+          "🌐 Complex subdomain structure"
+        );
+      }
+
+      if (
+        evidence.includes(
+          "suspicious security-related subdomain"
+        )
+      ) {
+        urlSignals.push(
+          "⚠️ Suspicious security-related subdomain"
+        );
+      }
+    });
+
+  indicators
+    .filter(
+      (item) =>
+        item.type === "brand_mismatch"
+    )
+    .forEach((indicator) => {
+      urlSignals.push(
+        "🏢 " +
+        (
+          indicator.evidence ||
+          indicator.description ||
+          "Brand/domain mismatch detected"
+        )
+      );
+    });
+
+  const uniqueUrlSignals = [
+    ...new Set(urlSignals)
+  ];
+
+  const reinforcementSignals = [];
+
+  if (
+    types.includes("credentials") &&
+    types.includes("url")
+  ) {
+    reinforcementSignals.push(
+      "🔐 Credentials + suspicious URL"
+    );
+  }
+
+  if (
+    types.includes("financial") &&
+    types.includes("url")
+  ) {
+    reinforcementSignals.push(
+      "💳 Financial risk + suspicious URL"
+    );
+  }
+
+  if (
+    types.includes("urgency") &&
+    types.includes("credentials")
+  ) {
+    reinforcementSignals.push(
+      "⏱️ Urgency + credentials"
+    );
+  }
+
+  if (
+    types.includes("threats") &&
+    types.includes("urgency")
+  ) {
+    reinforcementSignals.push(
+      "⚠️ Threat + urgency"
+    );
+  }
+
+  if (
+    types.includes("impersonation") &&
+    types.includes("credentials")
+  ) {
+    reinforcementSignals.push(
+      "🏢 Impersonation + credentials"
+    );
+  }
+
+  if (
+    types.includes("rewards") &&
+    types.includes("urgency")
+  ) {
+    reinforcementSignals.push(
+      "🎁 Reward + urgency"
+    );
+  }
+
+  if (
+    types.includes("rewards") &&
+    types.includes("suspicious_action")
+  ) {
+    reinforcementSignals.push(
+      "🎁 Reward + suspicious action"
+    );
+  }
+
+  if (
+    types.includes("urgency") &&
+    types.includes("suspicious_action")
+  ) {
+    reinforcementSignals.push(
+      "⏱️ Urgency + suspicious action"
+    );
+  }
+
+  if (
+    types.includes("credentials") &&
+    types.includes("url") &&
+    (
+      types.includes("urgency") ||
+      types.includes("threats") ||
+      types.includes("impersonation")
+    )
+  ) {
+    reinforcementSignals.push(
+      "🎯 Strong phishing pattern"
+    );
+  }
+
+  const section = (
+    title,
+    items,
+    contribution,
+    maximum
+  ) => `
+    <div style="
+      margin-top:14px;
+      padding:13px;
+      border-radius:10px;
+      background:rgba(255,255,255,.03);
+    ">
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:12px;
+      ">
+        <strong>
+          ${escapeHTML(title)}
+        </strong>
+
+        <strong>
+          +${contribution}/${maximum}
+        </strong>
+      </div>
+
+      <div style="margin-top:9px;">
+        ${
+          items.length
+            ? items
+                .map(
+                  (item) => `
+                    <div style="
+                      padding:7px 0;
+                      border-bottom:
+                        1px solid
+                        rgba(255,255,255,.06);
+                      line-height:1.5;
+                      opacity:.92;
+                    ">
+                      ${escapeHTML(item)}
+                    </div>
+                  `
+                )
+                .join("")
+            : `
+              <div style="
+                opacity:.6;
+                font-size:.85rem;
+              ">
+                No major signals detected.
+              </div>
+            `
+        }
+      </div>
+    </div>
+  `;
+
+  const calculatedScore =
+    Number(textContribution || 0) +
+    Number(urlContribution || 0) +
+    Number(reinforcementScore || 0);
+
+  const normalizedScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Number(finalScore || calculatedScore)
+    )
+  );
+
+  return `
+    <div style="
+      margin-top:18px;
+      padding-top:18px;
+      border-top:
+        1px solid
+        rgba(255,255,255,.10);
+    ">
+
+      <div style="
+        font-size:1.05rem;
+        font-weight:700;
+      ">
+        🧠 WHY ${normalizedScore}/100?
+      </div>
+
+      <div style="
+        font-size:.85rem;
+        opacity:.7;
+        margin-top:6px;
+        line-height:1.6;
+      ">
+        The final score is calculated from message signals,
+        URL and domain characteristics, and cross-signal
+        reinforcement.
+      </div>
+
+      ${section(
+        "MESSAGE ANALYSIS",
+        messageSignals,
+        textContribution,
+        55
+      )}
+
+      ${section(
+        "URL / DOMAIN ANALYSIS",
+        uniqueUrlSignals,
+        urlContribution,
+        25
+      )}
+
+      ${section(
+        "CROSS-SIGNAL REINFORCEMENT",
+        reinforcementSignals,
+        reinforcementScore,
+        20
+      )}
+
+      <div style="
+        margin-top:14px;
+        padding:10px 12px;
+        border-radius:10px;
+        background:rgba(255,255,255,.025);
+        font-size:.8rem;
+        opacity:.65;
+        line-height:1.6;
+      ">
+        Score calculation:
+        <strong>${textContribution}</strong>
+        +
+        <strong>${urlContribution}</strong>
+        +
+        <strong>${reinforcementScore}</strong>
+        =
+        <strong>${calculatedScore}</strong>
+      </div>
+
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:16px;
+        margin-top:16px;
+        padding:14px;
+        border-radius:10px;
+        background:rgba(255,255,255,.05);
+      ">
+        <strong>
+          FINAL RISK SCORE
+        </strong>
+
+        <strong>
+          ${normalizedScore}/100
+        </strong>
+      </div>
+
+    </div>
+  `;
+}
+
+
+function renderScoreBreakdown(
+  finalScore,
+  textContribution,
+  urlContribution,
+  reinforcementScore,
+  indicators
+) {
+  if (!scoreBreakdownElement) {
+    return;
+  }
+
+  let reasoning =
+    document.getElementById(
+      "detailedSecurityReasoning"
+    );
+
+  if (!reasoning) {
+    reasoning =
+      document.createElement("div");
+
+    reasoning.id =
+      "detailedSecurityReasoning";
+
+    scoreBreakdownElement.appendChild(
+      reasoning
+    );
+  }
+
+  reasoning.innerHTML =
+    renderDetailedSecurityReasoning(
+      finalScore,
+      textContribution,
+      urlContribution,
+      reinforcementScore,
+      indicators
+    );
+}
+
 
 /* =========================
    MAIN ANALYSIS
@@ -1098,19 +1439,31 @@ async function analyze() {
   results.classList.add("hidden");
   loading.classList.remove("hidden");
 
+  const controller =
+    new AbortController();
+
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    45000
+  );
+
   try {
     const response = await fetch(
       "https://scamshield-ai-api-82p6.onrender.com/analyze",
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type":
+            "application/json"
         },
         body: JSON.stringify({
           text
-        })
+        }),
+        signal: controller.signal
       }
     );
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(
@@ -1121,10 +1474,6 @@ async function analyze() {
     const data =
       await response.json();
 
-    /* =========================
-       BACKEND SCORE
-    ========================= */
-
     const fallback =
       analyzeText(text);
 
@@ -1134,7 +1483,7 @@ async function analyze() {
       );
 
     const allIndicators =
-      uniqueByType(
+      uniqueIndicators(
         backendIndicators.length
           ? backendIndicators
           : fallback.indicators
@@ -1150,9 +1499,17 @@ async function analyze() {
         data.url_contribution
       );
 
-    const rawReinforcement =
+    const rawReinforcementScore =
       Number(
         data.reinforcement_score
+      );
+
+    const fallbackTextContribution =
+      Math.round(
+        (Math.min(
+          fallback.score,
+          70
+        ) / 70) * 55
       );
 
     const textContribution =
@@ -1160,7 +1517,7 @@ async function analyze() {
         rawTextContribution
       )
         ? rawTextContribution
-        : fallback.score;
+        : fallbackTextContribution;
 
     const urlContribution =
       Number.isFinite(
@@ -1171,12 +1528,12 @@ async function analyze() {
 
     const reinforcementScore =
       Number.isFinite(
-        rawReinforcement
+        rawReinforcementScore
       )
-        ? rawReinforcement
+        ? rawReinforcementScore
         : 0;
 
-    const rawCalculatedScore =
+    const calculatedScore =
       textContribution +
       urlContribution +
       reinforcementScore;
@@ -1184,7 +1541,6 @@ async function analyze() {
     const backendScore =
       Number(data.score);
 
-    // Normalize the final score to prevent invalid values.
     const totalScore =
       Math.max(
         0,
@@ -1192,13 +1548,9 @@ async function analyze() {
           100,
           Number.isFinite(backendScore)
             ? backendScore
-            : rawCalculatedScore
+            : calculatedScore
         )
       );
-
-    /* =========================
-       SCORE
-    ========================= */
 
     const safeScore =
       updateScoreUI(
@@ -1208,11 +1560,12 @@ async function analyze() {
         reinforcementScore
       );
 
+    const threat =
+      getThreatLevel(safeScore);
+
     categoryElement.textContent =
       data.category ||
-      getThreatLevel(
-        safeScore
-      ).category;
+      threat.category;
 
     /* =========================
        INDICATORS
@@ -1223,7 +1576,7 @@ async function analyze() {
     );
 
     /* =========================
-       DETAILED REASONING
+       SECURITY REASONING
     ========================= */
 
     renderScoreBreakdown(
@@ -1246,10 +1599,14 @@ async function analyze() {
        EXPLANATION
     ========================= */
 
+    const backendExplanation =
+      typeof data.explanation === "string" &&
+      data.explanation.trim()
+        ? data.explanation.trim()
+        : getExplanation(safeScore);
+
     explanationElement.textContent =
-      getExplanation(
-        safeScore
-      );
+      backendExplanation;
 
     /* =========================
        EVIDENCE
@@ -1262,7 +1619,7 @@ async function analyze() {
       );
 
     /* =========================
-       AI
+       AI ANALYSIS
     ========================= */
 
     renderAIAnalysis(
@@ -1275,19 +1632,49 @@ async function analyze() {
        RECOMMENDATIONS
     ========================= */
 
-    const recommendations =
-      getRecommendations(
-        safeScore,
-        allIndicators
+    recommendationsElement.innerHTML = "";
+
+    const finalRecommendations = [];
+
+    const backendRecommendedAction =
+      typeof data.recommended_action === "string" &&
+      data.recommended_action.trim()
+        ? data.recommended_action.trim()
+        : "";
+
+    if (backendRecommendedAction) {
+      finalRecommendations.push(
+        backendRecommendedAction
       );
+    }
+
+    getRecommendations(
+      safeScore,
+      allIndicators
+    ).forEach(
+      (recommendation) => {
+        if (
+          !finalRecommendations.includes(
+            recommendation
+          )
+        ) {
+          finalRecommendations.push(
+            recommendation
+          );
+        }
+      }
+    );
 
     recommendationsElement.innerHTML =
-      recommendations
+      finalRecommendations
         .map(
-          (recommendation) =>
-            `<p>${escapeHTML(
-              recommendation
-            )}</p>`
+          (recommendation) => `
+            <p>
+              ${escapeHTML(
+                recommendation
+              )}
+            </p>
+          `
         )
         .join("");
 
@@ -1313,108 +1700,118 @@ async function analyze() {
     });
 
   } catch (error) {
+    clearTimeout(timeoutId);
+
     console.error(
       "ScamShield analysis error:",
       error
     );
 
-    /*
-      Fallback keeps the application useful
-      even when the API or AI service fails.
-    */
+    /* =========================
+       LOCAL FALLBACK
+    ========================= */
 
     try {
       const fallback =
         analyzeText(text);
 
-      const score =
-        fallback.score;
-
-      loading.classList.add(
-        "hidden"
-      );
-
-      scoreElement.textContent =
-        score;
-
-      const threat =
-        getThreatLevel(score);
-
-      threatLevelElement.textContent =
-        threat.level;
-
-      threatLevelElement.style.color =
-        threat.color;
-
-      categoryElement.textContent =
-        threat.category;
-
-      const indicators =
-        uniqueByType(
+      const fallbackIndicators =
+        uniqueIndicators(
           normalizeIndicators(
             fallback.indicators
           )
         );
 
+      const fallbackScore =
+        Math.max(
+          0,
+          Math.min(
+            70,
+            Number(fallback.score) || 0
+          )
+        );
+
+      const fallbackTextContribution =
+        Math.round(
+          (fallbackScore / 70) * 55
+        );
+
+      updateScoreUI(
+        fallbackScore,
+        fallbackTextContribution,
+        0,
+        0
+      );
+
+      const threat =
+        getThreatLevel(
+          fallbackScore
+        );
+
+      categoryElement.textContent =
+        threat.category;
+
       renderIndicators(
-        indicators
+        fallbackIndicators
+      );
+
+      renderScoreBreakdown(
+        fallbackScore,
+        fallbackTextContribution,
+        0,
+        0,
+        fallbackIndicators
       );
 
       renderRiskFactors([]);
 
       explanationElement.textContent =
-        getExplanation(score);
+        "The backend service was unavailable, so a local rule-based analysis was used.";
 
       evidenceElement.innerHTML =
         createEvidence(
           text,
-          indicators
+          fallbackIndicators
         );
 
       renderAIAnalysis(null);
 
-      const recommendations =
-        getRecommendations(
-          score,
-          indicators
-        );
-
       recommendationsElement.innerHTML =
-        recommendations
+        getRecommendations(
+          fallbackScore,
+          fallbackIndicators
+        )
           .map(
-            (recommendation) =>
-              `<p>${escapeHTML(
-                recommendation
-              )}</p>`
+            (recommendation) => `
+              <p>
+                ${escapeHTML(
+                  recommendation
+                )}
+              </p>
+            `
           )
           .join("");
 
       educationElement.innerHTML =
         getEducation(
-          indicators
+          fallbackIndicators
         );
 
-      renderScoreBreakdown(
-        score,
-        score,
-        0,
-        0,
-        indicators
-      );
-
-      results.classList.remove(
-        "hidden"
-      );
+      loading.classList.add("hidden");
+      results.classList.remove("hidden");
 
       results.scrollIntoView({
         behavior: "smooth",
         block: "start"
       });
 
-    } catch {
-      loading.classList.add(
-        "hidden"
+    } catch (fallbackError) {
+      console.error(
+        "ScamShield fallback error:",
+        fallbackError
       );
+
+      loading.classList.add("hidden");
 
       alert(
         "Analysis could not be completed."
@@ -1423,99 +1820,20 @@ async function analyze() {
   }
 }
 
-/* =========================
-   EXAMPLES
-========================= */
-
-const examples = {
-  bank: `
-URGENT!
-
-Your bank account will be suspended today.
-
-Verify your account immediately by clicking:
-
-http://secure-bank-login-example.com/verify
-
-Enter your password and security code to prevent
-your account from being closed.
-`,
-
-  delivery: `
-FINAL DELIVERY NOTICE!
-
-Your package could not be delivered.
-
-A $2.99 redelivery fee is required within 24 hours.
-
-Confirm your payment information here:
-
-http://delivery-payment-update-example.com/confirm
-
-Failure to pay may result in your package being returned.
-`,
-
-  crypto: `
-CONGRATULATIONS!
-
-You have been selected to receive a $5,000 crypto reward.
-
-Claim your reward immediately by connecting your
-wallet and verifying your account:
-
-http://crypto-reward-claim-example.com/wallet
-
-This offer expires today.
-`,
-
-  safe: `
-Hi Alex,
-
-Your appointment is confirmed for Tuesday
-at 10:00 AM.
-
-Please arrive 10 minutes early.
-
-See you then.
-`
-};
 
 /* =========================
-   EXAMPLE BUTTONS
-========================= */
-
-document
-  .querySelectorAll("[data-example]")
-  .forEach((button) => {
-    button.addEventListener(
-      "click",
-      () => {
-        const type =
-          button.dataset.example;
-
-        if (
-          Object.prototype.hasOwnProperty.call(
-            examples,
-            type
-          )
-        ) {
-          inputText.value =
-            examples[type];
-
-          inputText.focus();
-        }
-      }
-    );
-  });
-
-/* =========================
-   BUTTONS
+   ANALYZE BUTTON
 ========================= */
 
 analyzeBtn.addEventListener(
   "click",
   analyze
 );
+
+
+/* =========================
+   CLEAR BUTTON
+========================= */
 
 clearBtn.addEventListener(
   "click",
@@ -1530,7 +1848,6 @@ clearBtn.addEventListener(
       "hidden"
     );
 
-    // Remove old dynamically generated reasoning.
     const reasoning =
       document.getElementById(
         "detailedSecurityReasoning"
@@ -1539,8 +1856,20 @@ clearBtn.addEventListener(
     if (reasoning) {
       reasoning.remove();
     }
+
+    scoreElement.textContent = "0";
+    threatLevelElement.textContent = "";
+    categoryElement.textContent = "";
+    indicatorsElement.innerHTML = "";
+    riskFactorsElement.innerHTML = "";
+    explanationElement.textContent = "";
+    aiAnalysisElement.innerHTML = "";
+    evidenceElement.innerHTML = "";
+    recommendationsElement.innerHTML = "";
+    educationElement.innerHTML = "";
   }
 );
+
 
 /* =========================
    CTRL + ENTER
