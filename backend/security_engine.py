@@ -552,8 +552,8 @@ def analyze_with_ai(text: str):
     if not token:
         return {
             "status": "error",
-            "analysis": "AI analysis failed.",
-            "error": "HF_TOKEN is missing on the Render server."
+            "analysis": "AI analysis is unavailable.",
+            "error": "HF_TOKEN is missing."
         }
 
     try:
@@ -564,28 +564,27 @@ def analyze_with_ai(text: str):
         )
 
         prompt = f"""
-You are a cybersecurity assistant.
+You are ScamShield AI, a cybersecurity assistant specialized
+in detecting phishing, scams, fraud, and social engineering.
 
-Analyze the following message for phishing,
-scams, social engineering, or suspicious behavior.
+Analyze the following message defensively.
 
-Message:
-
+MESSAGE:
 {text}
 
-Return a short defensive analysis with:
+Provide a concise analysis containing:
 
-1. Main threat type
-2. Why it may be suspicious
-3. Recommended safe action
+Threat type:
+Why it is suspicious:
+Recommended safe action:
 
 Do not claim certainty.
-
-Do not provide instructions for attacking systems
-or stealing information.
+Do not provide instructions for attacking systems,
+stealing credentials, bypassing security, or committing fraud.
 """
 
         response = client.chat_completion(
+            model="Qwen/Qwen2.5-7B-Instruct",
             messages=[
                 {
                     "role": "user",
@@ -597,6 +596,9 @@ or stealing information.
         )
 
         analysis = response.choices[0].message.content
+
+        if not analysis:
+            raise ValueError("The AI model returned an empty response.")
 
         return {
             "status": "success",
