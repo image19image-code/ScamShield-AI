@@ -615,16 +615,8 @@ or stealing information.
         }
 
     except Exception as e:
-
-        print(
-            "AI ERROR TYPE:",
-            type(e).__name__
-        )
-
-        print(
-            "AI ERROR MESSAGE:",
-            str(e)
-        )
+        print("AI ERROR TYPE:", type(e).__name__)
+        print("AI ERROR MESSAGE:", repr(e))
 
         return {
             "status": "unavailable",
