@@ -1,3 +1,4 @@
+
 const inputText = document.getElementById("inputText");
 const analyzeBtn = document.getElementById("analyzeBtn");
 const clearBtn = document.getElementById("clearBtn");
@@ -1563,13 +1564,13 @@ async function analyze() {
     results.classList.remove("hidden");
 
 
-    const threatReport =
-  document.getElementById("threatReport");
+    const scoreBox =
+  document.querySelector(".score");
 
-if (threatReport) {
+if (scoreBox) {
 
   const targetPosition =
-    threatReport.getBoundingClientRect().top +
+    scoreBox.getBoundingClientRect().top +
     window.pageYOffset -
     20;
 
