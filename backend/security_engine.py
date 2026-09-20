@@ -549,25 +549,19 @@ def analyze_with_ai(text: str):
 
     token = os.getenv("HF_TOKEN")
 
-    # AI is optional.
-    # The security engine works without it.
-
     if not token:
-
         return {
-            "status": "unavailable",
-            "analysis":
-                "AI enhancement is unavailable. "
-                "The deterministic security engine "
-                "completed the analysis."
+            "status": "error",
+            "analysis": "AI analysis failed.",
+            "error": "HF_TOKEN is missing on the Render server."
         }
 
     try:
 
         client = InferenceClient(
-    provider="auto",
-    token=token
-)
+            provider="auto",
+            token=token
+        )
 
         prompt = f"""
 You are a cybersecurity assistant.
@@ -592,7 +586,7 @@ or stealing information.
 """
 
         response = client.chat_completion(
-    messages=[
+            messages=[
                 {
                     "role": "user",
                     "content": prompt
@@ -602,11 +596,7 @@ or stealing information.
             temperature=0.2
         )
 
-        analysis = (
-            response.choices[0]
-            .message
-            .content
-        )
+        analysis = response.choices[0].message.content
 
         return {
             "status": "success",
@@ -614,14 +604,16 @@ or stealing information.
         }
 
     except Exception as e:
+
+        print("========== AI ERROR ==========")
         print("AI ERROR TYPE:", type(e).__name__)
         print("AI ERROR MESSAGE:", repr(e))
+        print("==============================")
 
         return {
-            "status": "unavailable",
-            "analysis":
-                "AI enhancement is temporarily unavailable. "
-                "The security engine completed the analysis."
+            "status": "error",
+            "analysis": "AI analysis failed.",
+            "error": f"{type(e).__name__}: {str(e)}"
         }
 
 
