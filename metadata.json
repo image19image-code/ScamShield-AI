@@ -1,0 +1,8 @@
+{
+  "name": "ScamShield AI",
+  "description": "ScamShield AI analyzes suspicious messages and URLs for phishing, scams and social engineering indicators.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

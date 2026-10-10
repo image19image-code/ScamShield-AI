@@ -580,6 +580,37 @@ function normalizeIndicators(indicators) {
    MAIN ANALYSIS
 ========================= */
 
+function showNotice(msg) {
+  let notice = document.getElementById("scamshieldNotice");
+  if (!notice) {
+    notice = document.createElement("div");
+    notice.id = "scamshieldNotice";
+    notice.style.position = "fixed";
+    notice.style.bottom = "20px";
+    notice.style.right = "20px";
+    notice.style.maxWidth = "400px";
+    notice.style.background = "#1e293b";
+    notice.style.color = "#f8fafc";
+    notice.style.border = "1px solid #e11d48";
+    notice.style.borderRadius = "8px";
+    notice.style.padding = "12px 18px";
+    notice.style.boxShadow = "0 10px 25px rgba(0,0,0,0.5)";
+    notice.style.zIndex = "9999";
+    notice.style.fontSize = "0.95rem";
+    notice.style.transition = "opacity 0.3s ease";
+    document.body.appendChild(notice);
+  }
+  notice.textContent = msg;
+  notice.style.opacity = "1";
+  notice.style.display = "block";
+  setTimeout(() => {
+    if (notice) {
+      notice.style.opacity = "0";
+      setTimeout(() => { notice.style.display = "none"; }, 300);
+    }
+  }, 4000);
+}
+
 async function analyze() {
 
   const text =
@@ -588,7 +619,7 @@ async function analyze() {
 
   if (!text) {
 
-    alert(
+    showNotice(
       "Please paste a message or URL first."
     );
 
@@ -609,7 +640,7 @@ async function analyze() {
 
     const response =
       await fetch(
-        "https://scamshield-ai-api-82p6.onrender.com/analyze",
+        "/analyze",
         {
 
           method: "POST",
@@ -1365,7 +1396,7 @@ recommendationsElement.innerHTML =
     loading.classList.add("hidden");
 
 
-    alert(
+    showNotice(
       "Analysis error: " + error.message
     );
 
